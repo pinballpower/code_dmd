@@ -2,12 +2,23 @@
 
 ## Signals
 
+|Signal|Name|Usage|
+|---|---|---|---|
+|DE|display enable|Turn on/off display|
+|RDATA|row data|set first row|
+|RCLK|row clock|next row|
+|COLLAT|cloumn latch|activate transmitted data for current column
+|DOTCLK|dot clock|next column|
+|SDATA|dot data||pixel data|
+
+
+
 ## Timing/Frequencies
 
 |System|Pixel (column) Clock|Line clock|Screen rate|
 |---|---|---|---|
 |WPC|1MHz|3.9kHz|125Hz|
-|WhiteStar|||
+|WhiteStar|1MHz/500kHz|2.577kHz|78Hz|
 
 ## Operation WPC
 
@@ -21,6 +32,12 @@ is H when the RCLK signal is received, line is being
 reset to the first line
 
 ## Operation Whitestar
+
+WhiteStar works differently than WPC. In Whitestar, each line 
+is sent twice first with 500kHz pixel clock, then again with 
+1MHz pixel clock. While this might seem strange, this allows
+to use 2 bit brightness data with only 2 cycles.
+
 
 ## Reading data
 
