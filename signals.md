@@ -3,13 +3,13 @@
 ## Signals
 
 |Signal|Name|Usage|
-|---|---|---|---|
+|---|---|---|
 |DE|display enable|Turn on/off display|
 |RDATA|row data|set first row|
 |RCLK|row clock|next row|
-|COLLAT|cloumn latch|activate transmitted data for current column
+|COLLAT|cloumn latch|activate transmitted data for current column|
 |DOTCLK|dot clock|next column|
-|SDATA|dot data||pixel data|
+|SDATA|dot data|pixel data|
 
 
 
