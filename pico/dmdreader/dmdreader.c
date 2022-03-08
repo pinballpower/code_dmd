@@ -6,6 +6,7 @@
 #include "hardware/pio.h"
 
 #include "spi_slave_sender.pio.h"
+#include "dmd_interface_wpc.pio.h"
 
 // SPI data types and header blocks
 // header block length should always be a multiple of 32bit
@@ -48,6 +49,10 @@ uint8_t pixbuf2[MAX_WIDTH*MAX_HEIGHT*MAX_BITSPERPIXEL/8] = {0x55};
 // SPI PIO
 PIO spi_pio;
 uint spi_sm;
+
+// DMD PIO
+PIO dmd_pio;
+uint dmd_sm;
 
 
 void demo_image() {
@@ -129,6 +134,10 @@ void spi_send_pix(uint8_t *pixbuf) {
     end_data();
 } 
 
+void read_dmd() {
+    pio_sm_set_enabled(dmd_pio, dmd_sm, true);
+}
+
 void init() {
     stdio_init_all();
 
@@ -138,13 +147,22 @@ void init() {
     gpio_init(17);
     gpio_set_dir(17, GPIO_OUT);
     gpio_put(17, 0);
+    printf("IRQ pin initialized");
 
+    // initialize SPI slave PIO
     spi_pio = pio0;
     uint offset = pio_add_program(spi_pio, &clocked_output_program);
     spi_sm = pio_claim_unused_sm(spi_pio, true);
     clocked_output_program_init(spi_pio, spi_sm, offset, SPI_BASE);
-
     printf("SPI slave initialized");
+
+    // Initialize DMD reader
+    dmd_pio = pio0;
+    offset = pio_add_program(dmd_pio, &dmd_interface_wpc_program);
+    dmd_sm = pio_claim_unused_sm(dmd_pio, true);
+    dmd_interface_wpc_program_init(dmd_pio, dmd_sm, offset);
+    printf("DMD reader initialized");
+
 
     lcd_width = 128;
     lcd_height = 32;
