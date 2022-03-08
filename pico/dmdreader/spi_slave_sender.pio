@@ -1,0 +1,51 @@
+.program clocked_output
+
+; Send using an external clock on the SPI interface
+; - OUT pin 0 is the data pin
+; - IN pin 0 is the CLK pin
+; - Autopush is enabled, threshold 32
+;
+;    wait 0 pin 1
+
+.wrap_target
+    out pins 1
+    wait 1 pin 0
+    wait 0 pin 0
+.wrap
+
+
+% c-sdk {
+static inline void clocked_output_program_init(PIO pio, uint sm, uint offset, uint pin_spi_base) {
+    pio_sm_config c = clocked_output_program_get_default_config(offset);
+
+    // Set the IN base pin to the provided `pin` parameter. This is the clock
+    // pin
+    sm_config_set_in_pins(&c, pin_spi_base+2);
+    sm_config_set_out_pins(&c, pin_spi_base,1);
+
+    // Set the pin direction at the PIO
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_spi_base+2, 1, false);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_spi_base, 1, true);
+
+    // Connect these GPIOs to this PIO block
+    pio_gpio_init(pio, pin_spi_base+0);
+    pio_gpio_init(pio, pin_spi_base+2);
+
+    // Shifting to left matches the customary MSB-first ordering of SPI.
+    sm_config_set_out_shift(
+        &c,
+        false,  // Shift-to-right = false
+        true,  // Autopull enabled
+        32     // Autopull threshold = 8
+    );
+
+    // We only send, so disable the RX FIFO to make the TX FIFO deeper.
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
+
+    sm_config_set_clkdiv(&c,1);
+
+    // Load our configuration, and start the program from the beginning
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
