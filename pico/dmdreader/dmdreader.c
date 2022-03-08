@@ -36,14 +36,14 @@ typedef struct __attribute__((__packed__)) block_pix_header_t {
 #define MAX_HEIGHT 64
 #define MAX_BITSPERPIXEL 4
 
-uint8_t lcd_width;
-uint8_t lcd_height;
-uint8_t lcd_bitsperpixel;
-uint8_t lcd_pixelsperbyte;
+uint16_t lcd_width;
+uint16_t lcd_height;
+uint16_t lcd_bitsperpixel;
+uint16_t lcd_pixelsperbyte;
 uint16_t lcd_bytes;
 
-uint8_t pixbuf1[MAX_WIDTH*MAX_HEIGHT*MAX_BITSPERPIXEL/8];
-uint8_t pixbuf2[MAX_WIDTH*MAX_HEIGHT*MAX_BITSPERPIXEL/8];
+uint8_t pixbuf1[MAX_WIDTH*MAX_HEIGHT*MAX_BITSPERPIXEL/8] = {0xaa};
+uint8_t pixbuf2[MAX_WIDTH*MAX_HEIGHT*MAX_BITSPERPIXEL/8] = {0x55};
 
 // SPI PIO
 PIO spi_pio;
@@ -96,7 +96,7 @@ void serial_send_pix(uint8_t *buf) {
 void spi_send(uint32_t *buf, uint16_t len) {
     for (uint16_t i=0; i<len; i+= 4) {
         pio_sm_put_blocking(spi_pio, spi_sm, *buf);
-        buf+=4;
+        buf++;
     }
 }
 
@@ -110,8 +110,6 @@ void end_data() {
 
 // send the picture buffer via SPI
 void spi_send_pix(uint8_t *pixbuf) {
-
-
     block_header_t h = {
         .block_type = SPI_BLOCK_PIX
     };
@@ -123,11 +121,11 @@ void spi_send_pix(uint8_t *pixbuf) {
     ph.rows=lcd_height;
     ph.bitsperpixel=lcd_bitsperpixel;
 
-    //uint32_t x=0xffff0004;
-    //spi_send(&x,1);
     spi_send((uint32_t*)&h,sizeof(h));
-    start_data();
     spi_send((uint32_t*)&ph,sizeof(ph));
+    start_data();
+
+    spi_send((uint32_t*)pixbuf, lcd_bytes);
     end_data();
 } 
 
