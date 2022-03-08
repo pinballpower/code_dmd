@@ -1,1 +1,10 @@
 pico/dmdreader/build
+pico/dmdreader/CMakeCache.txt
+pico/dmdreader/CopyOfCMakeCache.txt
+pico/dmdreader/Makefile
+pico/dmdreader/cmake_install.cmake
+pico/dmdreader/elf2uf2/
+pico/dmdreader/generated/
+pico/dmdreader/pico-sdk/
+pico/dmdreader/pioasm/
+pico/dmdreader/CMakeFiles
