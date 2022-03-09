@@ -1,9 +1,9 @@
 ; As all programs use the same configuration, the length of these programs need to be identical!
 
 .program dmd_count_dotclk
-
 ; Count DMD dot clock
 
+    mov x, null
 .wrap_target
     wait 0 gpio 4
     jmp x-- clockdecrement
@@ -13,9 +13,9 @@ clockdecrement:
 .wrap
 
 .program dmd_count_de 
-
  ; count DMD data enable
 
+    mov x, null
 .wrap_target
     wait 0 gpio 0
     jmp x-- clockdecrement
@@ -25,9 +25,9 @@ clockdecrement:
 .wrap
 
 .program dmd_count_rdata 
-
  ; count DMD RDATA
 
+    mov x, null
 .wrap_target
     wait 0 gpio 1
     jmp x-- clockdecrement
@@ -37,9 +37,9 @@ clockdecrement:
 .wrap
 
 .program dmd_count_rclk
-
  ; count DMD RCLK
 
+    mov x, null
 .wrap_target
     wait 0 gpio 2
     jmp x-- clockdecrement
