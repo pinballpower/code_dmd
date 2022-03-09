@@ -116,19 +116,35 @@ void serial_send_pix(uint8_t *buf)
 }
 
 /**
- * @brief Send data via SPI
+ * @brief Send data via SPI, transfer data via DMA
  *
  * @param buf a byte buffer
  * @param len
  */
-void spi_send(uint32_t *buf, uint16_t len)
+void spi_send_dma(uint32_t *buf, uint16_t len)
+{
+
+    // SET DMA source address and immediately start transfer
+    dma_channel_set_read_addr(spi_dma_chan,buf,false);
+    dma_channel_set_trans_count(spi_dma_chan,len/4,true);
+
+}
+
+/**
+ * @brief Send data via SPI, using blocking IO
+ *
+ * @param buf a byte buffer
+ * @param len
+ */
+void spi_send_blocking(uint32_t *buf, uint16_t len)
 {
     for (uint16_t i = 0; i < len; i += 4)
     {
         pio_sm_put_blocking(spi_pio, spi_sm, *buf);
         buf++;
-    }
+    } 
 }
+
 
 void start_data()
 {
@@ -153,11 +169,11 @@ void spi_send_pix(uint8_t *pixbuf)
     ph.rows = lcd_height;
     ph.bitsperpixel = lcd_bitsperpixel;
 
-    spi_send((uint32_t *)&h, sizeof(h));
-    spi_send((uint32_t *)&ph, sizeof(ph));
+    spi_send_blocking((uint32_t *)&h, sizeof(h));
+    spi_send_blocking((uint32_t *)&ph, sizeof(ph));
+    spi_send_dma((uint32_t *)pixbuf, lcd_bytes);
     start_data();
 
-    spi_send((uint32_t *)pixbuf, lcd_bytes);
     end_data();
 }
 
@@ -289,6 +305,19 @@ int init()
                           NULL,                  // Destination pointer, needs to be set later
                           &dmd_pio->rxf[dmd_sm], // Source pointer
                           lcd_wordsperplane,     // Number of transfers
+                          false                  // Do not yet start
+    );
+
+    // DMA for SPI
+    spi_dma_chan_cfg = dma_channel_get_default_config(spi_dma_chan);
+    channel_config_set_read_increment(&spi_dma_chan_cfg, true);
+    channel_config_set_write_increment(&spi_dma_chan_cfg, false);
+    channel_config_set_dreq(&spi_dma_chan_cfg, pio_get_dreq(spi_pio, spi_sm, true));
+
+    dma_channel_configure(spi_dma_chan, &spi_dma_chan_cfg,
+                          &spi_pio->txf[spi_sm], // Destination pointer
+                          NULL,                  // Source pointer
+                          0,                     // Number of transfers
                           false                  // Do not yet start
     );
 
