@@ -50,7 +50,7 @@ uint16_t lcd_bitsperpixel;
 uint16_t lcd_pixelsperbyte;
 uint16_t lcd_bytes;
 uint16_t lcd_pixelsperframe;
-uint16_t lcd_wordsperframe;
+uint16_t lcd_wordsperplane;
 
 uint8_t pixbuf1[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL / 8] = {0xaa};
 uint8_t pixbuf2[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL / 8] = {0x55};
@@ -65,6 +65,10 @@ uint dmd_sm;
 
 // DMA
 uint dmd_dma_chan = 0;
+uint spi_dma_chan = 1;
+
+dma_channel_config dmd_dma_chan_cfg;
+dma_channel_config spi_dma_chan_cfg;
 
 void demo_image()
 {
@@ -218,24 +222,15 @@ int read_plane(uint8_t *capture_buf)
     pio_sm_clear_fifos(dmd_pio, dmd_sm);
     pio_sm_restart(dmd_pio, dmd_sm);
 
-    dma_channel_config c = dma_channel_get_default_config(dmd_dma_chan);
-    channel_config_set_read_increment(&c, false);
-    channel_config_set_write_increment(&c, true);
-    channel_config_set_dreq(&c, pio_get_dreq(dmd_pio, dmd_sm, false));
-
-    dma_channel_configure(dmd_dma_chan, &c,
-                          capture_buf,           // Destination pointer
-                          &dmd_pio->rxf[dmd_sm], // Source pointer
-                          lcd_wordsperframe,     // Number of transfers
-                          true                   // Start immediately
-    );
+    // SET DMA target address and immediately start transfer
+    dma_channel_set_write_addr(dmd_dma_chan,dp,true);
 
     pio_sm_set_enabled(dmd_pio, dmd_sm, true);
 
     sleep_ms(200);
 }
 
-void init()
+int init()
 {
     stdio_init_all();
 
@@ -275,22 +270,40 @@ void init()
     else
     {
         printf("Unknown DMD type, aborting\n");
+        return 1;
     }
-
-    // DMA
 
     // Calculate Display parameters
     lcd_bytes = lcd_width * lcd_height * lcd_bitsperpixel / 8;
     lcd_pixelsperframe = lcd_width * lcd_height;
-    lcd_wordsperframe = lcd_width * lcd_height / 32;
-
-
+    lcd_wordsperplane = lcd_width * lcd_height / 32;
     printf("LCD buffer initialized");
+
+    // DMA for DMD reader
+    dmd_dma_chan_cfg = dma_channel_get_default_config(dmd_dma_chan);
+    channel_config_set_read_increment(&dmd_dma_chan_cfg, false);
+    channel_config_set_write_increment(&dmd_dma_chan_cfg, true);
+    channel_config_set_dreq(&dmd_dma_chan_cfg, pio_get_dreq(dmd_pio, dmd_sm, false));
+
+    dma_channel_configure(dmd_dma_chan, &dmd_dma_chan_cfg,
+                          NULL,                  // Destination pointer, needs to be set later
+                          &dmd_pio->rxf[dmd_sm], // Source pointer
+                          lcd_wordsperplane,     // Number of transfers
+                          false                  // Do not yet start
+    );
+
+
+    return 0;
 }
 
 int main()
 {
-    init();
+    int error=init();
+
+    if (error) {
+        printf("Error during initialisation, aborting...\n");
+        return 0;
+    }
 
     read_plane(pixbuf1);
     // serial_send_pix(pixbuf1);
