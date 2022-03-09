@@ -36,6 +36,8 @@ def print_image(columns, rows, bitsperpixel, data):
         print(rstr)
 
 done=False
+todo=10;
+
 while not(done):
     GPIO.wait_for_edge(notify_gpio, GPIO.RISING)
     print("received notify")
@@ -62,7 +64,12 @@ while not(done):
 
         print_image(rows, columns, bitsperpixel, buf[8:])
 
+        todo -= 1;
+
+    if todo==0:
         done=True
+
+    
 
     
 GPIO.cleanup()
