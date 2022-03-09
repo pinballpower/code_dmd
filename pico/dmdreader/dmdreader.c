@@ -51,6 +51,7 @@ uint16_t lcd_pixelsperbyte;
 uint16_t lcd_bytes;
 uint16_t lcd_pixelsperframe;
 uint16_t lcd_wordsperplane;
+uint16_t lcd_bytesperplane;
 
 uint8_t pixbuf1[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL / 8] = {0xaa};
 uint8_t pixbuf2[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL / 8] = {0x55};
@@ -70,50 +71,9 @@ uint spi_dma_chan = 1;
 dma_channel_config dmd_dma_chan_cfg;
 dma_channel_config spi_dma_chan_cfg;
 
-void demo_image()
-{
-    for (uint16_t i = 0; i < lcd_bytes; i++)
-    {
-        pixbuf1[i] = i & 0xff;
-        pixbuf2[i] = i & 0xff;
-    }
-}
+// Interrupts
+uint dmd_int = 0;
 
-// Send picture to serial port, only use most significant bit
-void serial_send_pix(uint8_t *buf)
-{
-    char linestr[MAX_WIDTH] = {0};
-    uint16_t i = 0;
-    uint8_t bitoffset = 0;
-    uint8_t pixel = 0;
-
-    for (uint8_t line = 0; line < lcd_height; line++)
-    {
-        for (uint8_t column = 0; column < lcd_width; column++)
-        {
-            if (bitoffset >= 8)
-            {
-                buf++;
-                bitoffset = 0;
-            }
-
-            // get the MSB from the current pixel
-            pixel = (*buf >> bitoffset >> (lcd_bitsperpixel - 1)) & 1;
-
-            bitoffset += lcd_bitsperpixel;
-
-            if (pixel)
-            {
-                linestr[column] = '*';
-            }
-            else
-            {
-                linestr[column] = ' ';
-            }
-        }
-        printf("%s\n", linestr);
-    }
-}
 
 /**
  * @brief Send data via SPI, transfer data via DMA
@@ -123,11 +83,9 @@ void serial_send_pix(uint8_t *buf)
  */
 void spi_send_dma(uint32_t *buf, uint16_t len)
 {
-
     // SET DMA source address and immediately start transfer
     dma_channel_set_read_addr(spi_dma_chan,buf,false);
     dma_channel_set_trans_count(spi_dma_chan,len/4,true);
-
 }
 
 /**
@@ -145,18 +103,25 @@ void spi_send_blocking(uint32_t *buf, uint16_t len)
     } 
 }
 
-
-void start_data()
+/**
+ * @brief Notify on pin 17 that data are ready on SPI
+ * 
+ * The SPI master (thei Pico is slave) should start a data transfer when this signal is received
+ * 
+ */
+void notify_spi()
 {
     gpio_put(17, 1);
-}
-
-void end_data()
-{
+    sleep_us(50);
     gpio_put(17, 0);
 }
 
-// send the picture buffer via SPI
+
+/**
+ * @brief Send a pix buffer via SPI
+ * 
+ * @param pixbuf 
+ */
 void spi_send_pix(uint8_t *pixbuf)
 {
     block_header_t h = {
@@ -172,15 +137,9 @@ void spi_send_pix(uint8_t *pixbuf)
     spi_send_blocking((uint32_t *)&h, sizeof(h));
     spi_send_blocking((uint32_t *)&ph, sizeof(ph));
     spi_send_dma((uint32_t *)pixbuf, lcd_bytes);
-    start_data();
-
-    end_data();
+    notify_spi();
 }
 
-void read_dmd()
-{
-    pio_sm_set_enabled(dmd_pio, dmd_sm, true);
-}
 
 /**
  * @brief Count a clock using different PIO programs defined in dmd_counter.pio
@@ -293,6 +252,7 @@ int init()
     lcd_bytes = lcd_width * lcd_height * lcd_bitsperpixel / 8;
     lcd_pixelsperframe = lcd_width * lcd_height;
     lcd_wordsperplane = lcd_width * lcd_height / 32;
+    lcd_bytesperplane = lcd_width * lcd_height / 8;
     printf("LCD buffer initialized");
 
     // DMA for DMD reader
@@ -335,7 +295,6 @@ int main()
     }
 
     read_plane(pixbuf1);
-    // serial_send_pix(pixbuf1);
     spi_send_pix(pixbuf1);
 
     return 0;

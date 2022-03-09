@@ -28,7 +28,7 @@ dotloop:
     in pins 1      ; read pin data
 
     jmp x-- dotloop
-  
+
 .wrap
 
 
@@ -55,9 +55,9 @@ static inline void dmd_reader_wpc_program_init(PIO pio, uint sm, uint offset) {
     // Shifting to left matches the customary MSB-first ordering of SPI.
     sm_config_set_in_shift(
         &c,
-        false,  // Shift-to-right = false
+        false, // Shift-to-right = false
         true,  // Autopull enabled
-        32     // Autopull threshold = 32
+        32     // Autopull threshold
     );
 
     // We only send, so disable the TX FIFO to make the RX FIFO deeper.
