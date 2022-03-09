@@ -8,25 +8,28 @@
 
     wait 0 gpio 1 ; wait for RDATA to go L
 
-.wrap_target
+;.wrap_target
 
     ; initialize x with 4096 = number of pixels
     set x, 1
     in x, 1
     in null, 12
-    mov x, null
+    mov x, isr
+    mov isr, null  ; reset shift counter
 
-    wait 1 gpio 1 ; wait for RDATA to go H
-    wait 0 gpio 2 ; wait for RCLK to go L
+    wait 1 gpio 1  ; wait for RDATA to go H
+    wait 0 gpio 2  ; wait for RCLK to go L
 
 dotloop:
-    wait 1 gpio 4  ; rasing edge
+    wait 1 gpio 4  ; raising edge
     wait 0 gpio 4  ; falling edge
     in pins 1      ; read pin data
 
     jmp x-- dotloop
+
+
     
-.wrap
+;.wrap
 
 
 % c-sdk {
