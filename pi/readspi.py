@@ -20,23 +20,25 @@ def print_image(columns, rows, bitsperpixel, data):
     pixelmask=0xff>>(8-bitsperpixel)
     print(pixelmask)
     pixelindex=0
-    pixelbit=0
+    pixelbit=8
     for r in range(rows):
         rstr=""
         for c in range(columns):
-            d=data[pixelindex]
-            pixelbit += bitsperpixel
-            if pixelbit >= 8:
-                pixelbit -= 8
+            pixelbit -= bitsperpixel
+            if pixelbit < 0:
+                pixelbit += 8
                 pixelindex += 1
+            d=data[pixelindex]
             if ((d >> pixelbit) & pixelmask)>0:
                 rstr+="*"
             else:
                 rstr+=" "
+
+
         print(rstr)
 
 done=False
-todo=10;
+todo=20;
 
 while not(done):
     GPIO.wait_for_edge(notify_gpio, GPIO.RISING)
