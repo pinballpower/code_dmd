@@ -49,6 +49,8 @@ uint16_t lcd_height;
 uint16_t lcd_bitsperpixel;
 uint16_t lcd_pixelsperbyte;
 uint16_t lcd_bytes;
+uint16_t lcd_pixelsperframe;
+uint16_t lcd_wordsperframe;
 
 uint8_t pixbuf1[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL / 8] = {0xaa};
 uint8_t pixbuf2[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL / 8] = {0x55};
@@ -203,7 +205,13 @@ int detect_dmd()
     return DMD_UNKNOWN;
 }
 
-int read_frame(uint8_t *capture_buf)
+/**
+ * @brief Read a single 1-bit depth DMD plane into the buffer
+ * 
+ * @param capture_buf buffer to write to
+ * @return int 
+ */
+int read_plane(uint8_t *capture_buf)
 {
     uint32_t *dp=(uint32_t *)capture_buf;
     pio_sm_set_enabled(dmd_pio, dmd_sm, false);
@@ -215,20 +223,16 @@ int read_frame(uint8_t *capture_buf)
     channel_config_set_write_increment(&c, true);
     channel_config_set_dreq(&c, pio_get_dreq(dmd_pio, dmd_sm, false));
 
-/*     dma_channel_configure(dmd_dma_chan, &c,
+    dma_channel_configure(dmd_dma_chan, &c,
                           capture_buf,           // Destination pointer
                           &dmd_pio->rxf[dmd_sm], // Source pointer
-                          lcd_bytes / 4,         // Number of transfers
+                          lcd_wordsperframe,     // Number of transfers
                           true                   // Start immediately
-    ); */
+    );
 
     pio_sm_set_enabled(dmd_pio, dmd_sm, true);
 
-    for (int i=0; i<256; i++) {
-        *dp = pio_sm_get_blocking(dmd_pio, dmd_sm);
-        dp++;
-    }
-    printf("");
+    sleep_ms(200);
 }
 
 void init()
@@ -275,7 +279,11 @@ void init()
 
     // DMA
 
+    // Calculate Display parameters
     lcd_bytes = lcd_width * lcd_height * lcd_bitsperpixel / 8;
+    lcd_pixelsperframe = lcd_width * lcd_height;
+    lcd_wordsperframe = lcd_width * lcd_height / 32;
+
 
     printf("LCD buffer initialized");
 }
@@ -284,7 +292,7 @@ int main()
 {
     init();
 
-    read_frame(pixbuf1);
+    read_plane(pixbuf1);
     // serial_send_pix(pixbuf1);
     spi_send_pix(pixbuf1);
 
