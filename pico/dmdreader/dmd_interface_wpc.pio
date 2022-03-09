@@ -1,4 +1,4 @@
-.program dmd_interface_wpc
+.program dmd_reader_wpc
 
 ; Send using an external clock on the SPI interface
 ; - IN pin 0 is the DATA pin
@@ -30,10 +30,10 @@ dotloop:
 
 
 % c-sdk {
-static inline void dmd_interface_wpc_program_init(PIO pio, uint sm, uint offset) {
+static inline void dmd_reader_wpc_program_init(PIO pio, uint sm, uint offset) {
 
     uint8_t datapin = 5;
-    pio_sm_config c = clocked_output_program_get_default_config(offset);
+    pio_sm_config c = dmd_reader_wpc_program_get_default_config(offset);
 
     // Set the IN base pin to the provided `pin` parameter. This is the data pin, we don't use any other
     sm_config_set_in_pins(&c, datapin);

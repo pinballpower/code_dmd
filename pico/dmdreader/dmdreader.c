@@ -6,6 +6,7 @@
 #include "hardware/pio.h"
 
 #include "spi_slave_sender.pio.h"
+#include "dmd_counter.pio.h"
 #include "dmd_interface_wpc.pio.h"
 
 // SPI data types and header blocks
@@ -31,6 +32,10 @@ typedef struct __attribute__((__packed__)) block_pix_header_t {
 #define SPI0_CS   (SPI_BASE+1)
 #define SPI0_SCK  (SPI_BASE+2)
 #define SPI0_MOSI (SPI_BASE+3)
+
+// DMD types
+#define DMD_UNKNOWN 0
+#define DMD_WPC 1
 
 // data buffer
 #define MAX_WIDTH 192
@@ -138,6 +143,45 @@ void read_dmd() {
     pio_sm_set_enabled(dmd_pio, dmd_sm, true);
 }
 
+/**
+ * @brief Count a clock using different PIO programs defined in dmd_counter.pio
+ * 
+ * @return uint32_t Number of clocks per second
+ */
+uint32_t count_clock(const pio_program_t *program) {
+
+    dmd_pio = pio0;
+    uint offset = pio_add_program(dmd_pio, program);
+    dmd_sm = pio_claim_unused_sm(dmd_pio, true);
+    dmd_counter_program_init(dmd_pio, dmd_sm, offset);
+    pio_sm_set_enabled(dmd_pio,dmd_sm, true);
+    sleep_ms(500);
+    pio_sm_exec(dmd_pio, dmd_sm, pio_encode_in(pio_x,32));
+    uint32_t count = ~ pio_sm_get(dmd_pio, dmd_sm);
+    pio_sm_set_enabled(dmd_pio,dmd_sm, false);
+    pio_remove_program(dmd_pio,program,offset);
+
+    return count*2;
+}
+
+int detect_dmd() {
+
+    uint32_t dotclk=count_clock(&dmd_count_dotclk_program);
+    uint32_t de=count_clock(&dmd_count_de_program);
+    uint32_t rdata=count_clock(&dmd_count_rdata_program);
+
+    printf("",dotclk,de,rdata);
+
+    if ((dotclk > 450000) && (dotclk < 550000) &&
+        (de > 3800) && (de < 4000) &&
+        (rdata > 115) && (rdata < 130)) {
+            printf("WPC detected\n");
+            return DMD_WPC;
+        }
+
+    return DMD_UNKNOWN;       
+}
+
 void init() {
     stdio_init_all();
 
@@ -156,11 +200,17 @@ void init() {
     clocked_output_program_init(spi_pio, spi_sm, offset, SPI_BASE);
     printf("SPI slave initialized");
 
+    // Initialize DMD counter (only used for initialization)
+    
+
+    detect_dmd();
+
+
     // Initialize DMD reader
     dmd_pio = pio0;
-    offset = pio_add_program(dmd_pio, &dmd_interface_wpc_program);
+    offset = pio_add_program(dmd_pio, &dmd_reader_wpc_program);
     dmd_sm = pio_claim_unused_sm(dmd_pio, true);
-    dmd_interface_wpc_program_init(dmd_pio, dmd_sm, offset);
+    dmd_reader_wpc_program_init(dmd_pio, dmd_sm, offset);
     printf("DMD reader initialized");
 
 
