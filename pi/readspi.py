@@ -29,8 +29,13 @@ def print_image(columns, rows, bitsperpixel, data):
                 pixelbit += 8
                 pixelindex += 1
             d=data[pixelindex]
-            if ((d >> pixelbit) & pixelmask)>0:
+            pv = ((d >> pixelbit) & pixelmask);
+            if pv>2:
                 rstr+="*"
+            elif pv>1:
+                rstr+="o"
+            elif pv>0:
+                rstr+="."
             else:
                 rstr+=" "
 
@@ -64,7 +69,7 @@ while not(done):
         (columns, rows, _padding, bitsperpixel) = unpack(">HHHH",bytes(buf[:8]));
         print("{}x{} pixel, {} bits/px".format(columns,rows,bitsperpixel))
 
-        print_image(rows, columns, 1, buf[8:])
+        print_image(rows, columns, bitsperpixel, buf[8:])
 
         todo -= 1;
 

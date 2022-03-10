@@ -24,9 +24,9 @@ lineloop:
 
     wait 1 gpio rclk
 
-    ; initialize y with 4096 = number of pixels (128x32)
-    set x, 1
-    in x, 1
+    ; initialize y with 12288 = number of pixels (128x32) * number of planes
+    set x, 3
+    in x, 2
     in null, 12
     mov y, isr
 
@@ -41,7 +41,7 @@ lineloop:
 
 dotloop:
     wait 0 gpio 4  ; falling edge
-    ; in null 1      ; add a 0 to the output as WPC is 2bit/px
+    in null 1      ; add a 0 to the output as WPC is 2bit/px
     wait 1 gpio 4  ; raising edge
     in pins 1      ; read pin data
 

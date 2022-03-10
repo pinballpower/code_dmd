@@ -52,6 +52,7 @@ typedef struct __attribute__((__packed__)) block_pix_header_t
 #define MAX_WIDTH 192
 #define MAX_HEIGHT 64
 #define MAX_BITSPERPIXEL 4
+#define MAX_PLANESPERFRAME 4
 
 uint16_t lcd_width;
 uint16_t lcd_height;
@@ -61,10 +62,19 @@ uint16_t lcd_bytes;
 uint16_t lcd_pixelsperframe;
 uint16_t lcd_wordsperplane;
 uint16_t lcd_bytesperplane;
+uint16_t lcd_planesperframe;
+uint16_t lcd_wordsperframe;
+uint16_t lcd_bytesperframe;
 
-uint8_t planebuf1[MAX_WIDTH * MAX_HEIGHT / 8] = {0xaa};
-uint8_t planebuf2[MAX_WIDTH * MAX_HEIGHT / 8] = {0x55};
+// raw data read from DMD
+uint8_t planebuf1[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL * MAX_PLANESPERFRAME / 8];
+uint8_t planebuf2[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL * MAX_PLANESPERFRAME / 8];
 uint8_t *lastplane = planebuf2;
+
+// processed frames (merged planes)
+uint8_t framebuf1[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL / 8];
+uint8_t framebuf2[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL/ 8];
+uint8_t* lastframe = framebuf1;
 
 uint32_t planes_received=0;
 
@@ -214,15 +224,17 @@ int read_plane(uint8_t *capture_buf)
 void dmd_dma_handler() {
 
     uint8_t *target;
-    uint32_t *databuf;
+    uint32_t *planebuf;
 
     // Switch between buffers
     if (lastplane == planebuf1) {
         target = planebuf1;
         lastplane = planebuf2;
+        lastframe = framebuf2;
     } else {
         target = planebuf2;
         lastplane = planebuf1;
+        lastframe = framebuf1;
     }
 
     // Clear the interrupt request
@@ -234,15 +246,37 @@ void dmd_dma_handler() {
     // Just for debugging purposes
     planes_received++;
 
-    // Fix order of the buffers
-    databuf = (uint32_t *)lastplane;
+    // Fix byte order within the buffer
+    planebuf = (uint32_t *)lastplane;
     buf32_t *v;
     uint32_t res;
-    for (int i=0; i<lcd_wordsperplane; i++) {
-        v=(buf32_t*)databuf;
+    for (int i=0; i<lcd_wordsperframe; i++) {
+        v=(buf32_t*)planebuf;
         res=(v->byte3 << 24) | (v->byte2 << 16) | (v->byte1 << 8) | (v->byte0);
-        *databuf=res;
-        databuf++;
+        *planebuf=res;
+        planebuf++;
+    }
+
+    // return;
+
+    // Merge multiple planes
+
+    // calculate offsets for each plane and cache these
+    // TODO: It might make sense to calculate and cache these globally once
+    // during initialisation to save some processing time here
+    uint16_t offset[MAX_PLANESPERFRAME];
+    for (int i=0; i<MAX_PLANESPERFRAME; i++) {
+        offset[i]=i*lcd_wordsperplane;
+    }
+
+    planebuf = (uint32_t *)lastplane;
+    uint32_t *framebuf = (uint32_t *)lastframe;
+    for (int px=0; px<lcd_wordsperplane; px++) {
+        uint32_t pixval=0;
+        for (int frame=0; frame<lcd_planesperframe; frame++) {
+            pixval += planebuf[offset[frame]+px];
+        }
+        framebuf[px]=pixval;
     }
 }
 
@@ -283,6 +317,7 @@ int init()
         lcd_height = 32;
         lcd_bitsperpixel = 2;
         lcd_pixelsperbyte = 8 / lcd_bitsperpixel;
+        lcd_planesperframe = 3;
     }
     else
     {
@@ -293,8 +328,11 @@ int init()
     // Calculate Display parameters
     lcd_bytes = lcd_width * lcd_height * lcd_bitsperpixel / 8;
     lcd_pixelsperframe = lcd_width * lcd_height;
-    lcd_wordsperplane = lcd_width * lcd_height / 32;
-    lcd_bytesperplane = lcd_width * lcd_height / 8;
+    lcd_wordsperplane = lcd_bytes / 4;
+    lcd_bytesperplane = lcd_bytes;
+    lcd_wordsperframe = lcd_wordsperplane * lcd_planesperframe;
+    lcd_bytesperframe = lcd_bytesperplane * lcd_planesperframe;
+
     printf("LCD buffer initialized");
 
     // DMA for DMD reader
@@ -306,7 +344,7 @@ int init()
     dma_channel_configure(dmd_dma_chan, &dmd_dma_chan_cfg,
                           NULL,                  // Destination pointer, needs to be set later
                           &dmd_pio->rxf[dmd_sm], // Source pointer
-                          lcd_wordsperplane,     // Number of transfers
+                          lcd_wordsperframe,     // Number of transfers
                           false                  // Do not yet start
     );
 
@@ -347,7 +385,7 @@ int main()
     sleep_ms(1000);
     printf("",planes_received);
     for (int i=0; i<80; i++) {
-        spi_send_pix(lastplane);
+        spi_send_pix(lastframe);
         sleep_ms(1000);
     }
 
