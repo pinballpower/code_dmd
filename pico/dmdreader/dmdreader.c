@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdbool.h>
 #include "pico/stdlib.h"
 #include "hardware/uart.h"
 #include "hardware/gpio.h"
@@ -20,6 +21,8 @@
  *  image with potentially more than one bit per pixel 
  * 
  */
+
+#define SENDFRAMES_SPI 1
 
 typedef struct buf32_t 
 {
@@ -87,7 +90,9 @@ uint8_t framebuf1[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL / 8];
 uint8_t framebuf2[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL/ 8];
 uint8_t* lastframe = framebuf1;
 
-uint32_t planes_received=0;
+uint32_t stat_frames_received=0;
+uint32_t stat_spi_skipped=0;
+
 
 // SPI PIO
 PIO spi_pio;
@@ -108,9 +113,12 @@ uint spi_dma_chan = 1;
 dma_channel_config dmd_dma_chan_cfg;
 dma_channel_config spi_dma_chan_cfg;
 
+volatile bool spi_dma_running=false;
+
 // Interrupts
 uint dmd_int = 0;
 
+volatile bool frame_received = false;
 
 /**
  * @brief Send data via SPI, transfer data via DMA
@@ -120,6 +128,7 @@ uint dmd_int = 0;
  */
 void spi_send_dma(uint32_t *buf, uint16_t len)
 {
+    spi_dma_running=true;
     // SET DMA source address and immediately start transfer
     dma_channel_set_read_addr(spi_dma_chan,buf,false);
     dma_channel_set_trans_count(spi_dma_chan,len/4,true);
@@ -141,15 +150,60 @@ void spi_send_blocking(uint32_t *buf, uint16_t len)
 }
 
 /**
- * @brief Notify on pin 17 that data are ready on SPI
+ * @brief Check if there is still an active SPI data transfer
  * 
- * The SPI master (thei Pico is slave) should start a data transfer when this signal is received
+ * @return true if there is still data in the TX FIFO
+ * @return false if there is no data in the TX FIFO
+ */
+bool spi_busy() {
+    if (!(pio_sm_is_tx_fifo_empty (spi_pio, spi_sm))) {
+        return true;
+    }
+
+    if (dma_channel_is_busy(spi_dma_chan)) {
+        return true;
+    }
+
+    if (spi_dma_running) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * @brief Abort running SPI transfers. This can be necessary in case the SPI master hangs
  * 
  */
-void notify_spi()
+void spi_abort() {
+    if (dma_channel_is_busy(spi_dma_chan)) {
+        dma_channel_abort(spi_dma_chan);
+    }
+
+    if (!(pio_sm_is_tx_fifo_empty (spi_pio, spi_sm))) {
+        pio_sm_clear_fifos (spi_pio, spi_sm);
+    }
+
+    spi_dma_running=false;
+}
+
+/**
+ * @brief Notify on pin 17 that data are ready on SPI
+ * 
+ * The SPI master (the Pico is slave) should start a data transfer when this signal is received
+ * It toggles pin 17 to H
+ * 
+ */
+void start_spi()
 {
     gpio_put(17, 1);
-    sleep_us(50);
+}
+
+/**
+ * @brief Set pin 17 to L to signal that there is no active SPI data transfer
+ * 
+ */
+void finish_spi() {
     gpio_put(17, 0);
 }
 
@@ -157,9 +211,9 @@ void notify_spi()
 /**
  * @brief Send a pix buffer via SPI
  * 
- * @param pixbuf 
+ * @param pixbuf a frame to send
  */
-void spi_send_pix(uint8_t *pixbuf)
+bool spi_send_pix(uint8_t *pixbuf, bool skip_when_busy)
 {
     block_header_t h = {
         .block_type = SPI_BLOCK_PIX};
@@ -171,10 +225,16 @@ void spi_send_pix(uint8_t *pixbuf)
     ph.rows = lcd_height;
     ph.bitsperpixel = lcd_bitsperpixel;
 
+    if (skip_when_busy) {
+        if (spi_busy()) return false;
+    }
+
     spi_send_blocking((uint32_t *)&h, sizeof(h));
     spi_send_blocking((uint32_t *)&ph, sizeof(ph));
     spi_send_dma((uint32_t *)pixbuf, lcd_bytes);
-    notify_spi();
+    start_spi();
+
+    return true;
 }
 
 
@@ -222,14 +282,15 @@ int detect_dmd()
 }
 
 /**
- * @brief Read a single 1-bit depth DMD plane into the buffer
+ * @brief Is being called when SPI DMA transfer has finished
  * 
- * @param capture_buf buffer to write to
- * @return int 
  */
-int read_plane(uint8_t *capture_buf)
-{
-    
+void spi_dma_handler() {
+    // Clear the interrupt request
+    dma_hw->ints1 = 1u << spi_dma_chan;
+
+    finish_spi();
+    spi_dma_running=false;
 }
 
 /**
@@ -259,7 +320,7 @@ void dmd_dma_handler() {
     dma_channel_set_write_addr(dmd_dma_chan,target,true);
 
     // Just for debugging purposes
-    planes_received++;
+    stat_frames_received++;
 
     // Fix byte order within the buffer
     planebuf = (uint32_t *)lastplane;
@@ -272,18 +333,15 @@ void dmd_dma_handler() {
         planebuf++;
     }
 
-    // return;
-
     // Merge multiple planes
 
     // calculate offsets for each plane and cache these
-    // TODO: It might make sense to calculate and cache these globally once
-    // during initialisation to save some processing time here
     uint16_t offset[MAX_PLANESPERFRAME];
     for (int i=0; i<MAX_PLANESPERFRAME; i++) {
         offset[i]=i*lcd_wordsperplane;
     }
 
+    // add all planes to get the frame data
     planebuf = (uint32_t *)lastplane;
     uint32_t *framebuf = (uint32_t *)lastframe;
     for (int px=0; px<lcd_wordsperplane; px++) {
@@ -293,10 +351,12 @@ void dmd_dma_handler() {
         }
         framebuf[px]=pixval;
     }
+
+    frame_received=true;
 }
 
 
-int init()
+bool init()
 {
     stdio_init_all();
 
@@ -345,7 +405,7 @@ int init()
     else
     {
         printf("Unknown DMD type, aborting\n");
-        return 1;
+        return false;
     }
 
     // Calculate Display parameters
@@ -388,28 +448,31 @@ int init()
                           false                  // Do not yet start
     );
 
+    dma_channel_set_irq1_enabled(spi_dma_chan, true);
+    irq_set_exclusive_handler(DMA_IRQ_1, spi_dma_handler);
+    irq_set_enabled(DMA_IRQ_1, true);
+
     // Finally start DMD reader PIO program and DMA
     dmd_dma_handler();
     pio_sm_set_enabled(dmd_pio, dmd_sm, true);
 
-    return 0;
+    return true;
 }
 
 int main()
 {
-    int error=init();
-
-    if (error) {
+    if (!init()) {
         printf("Error during initialisation, aborting...\n");
         return 0;
     }
 
-    // read_plane(pixbuf1);
-    sleep_ms(1000);
-    printf("",planes_received);
-    for (int i=0; i<80; i++) {
-        spi_send_pix(lastframe);
-        sleep_ms(1000);
+    while (true) {
+        // Wait for the next frame
+        if (!(frame_received)) sleep_ms(1);
+        frame_received=false; 
+
+        // do something
+        spi_send_pix(lastframe,true);
     }
 
     return 0;

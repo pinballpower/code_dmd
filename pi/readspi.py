@@ -43,10 +43,11 @@ def print_image(columns, rows, bitsperpixel, data):
         print(rstr)
 
 done=False
-todo=20;
+todo=2000;
 
 while not(done):
-    GPIO.wait_for_edge(notify_gpio, GPIO.RISING)
+    if not(GPIO.input(notify_gpio)):
+        GPIO.wait_for_edge(notify_gpio, GPIO.RISING)
     print("received notify")
 
     header=bytes(spi.readbytes(4))
