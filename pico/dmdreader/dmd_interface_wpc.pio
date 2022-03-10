@@ -1,10 +1,3 @@
-.program dmd_reader_wpc
-
-; Send using an external clock on the SPI interface
-; - IN pin 0 is the DATA pin
-; - Autopush is enabled, threshold 32
-;
-
 .define PUBLIC dmd_reader_interrupt 0
 .define de 0
 .define rdata 1
@@ -13,16 +6,11 @@
 .define dotclk 4
 .define sdata 5
 
-    ; synchronize on the first line
-    wait 0 gpio rdata ; wait for RDATA to go L
-    wait 1 gpio rdata ; wait for RDATA to go L
-    set x, 31
-lineloop:
-    wait 1 gpio rclk
-    wait 0 gpio rclk
-    jmp x-- lineloop
 
-    wait 1 gpio rclk
+.program dmd_reader_wpc
+
+; Send using an external clock on the SPI interface
+; - IN pin 0 is the DATA pin
 
     ; initialize y with 12288 = number of pixels (128x32) * number of planes
     set x, 3
@@ -35,9 +23,8 @@ lineloop:
     mov x, y       ; load number of pixels
     mov isr, null  ; reset shift counter
 
-    wait 1 gpio rdata
-    wait 0 gpio rclk  
-    wait 1 gpio rclk
+    irq clear 4 
+    wait irq 4
 
 dotloop:
     wait 0 gpio 4  ; falling edge
@@ -46,6 +33,23 @@ dotloop:
     in pins 1      ; read pin data
 
     jmp x-- dotloop
+
+.wrap
+
+.program dmd_framedetect_wpc
+
+.wrap_target
+; synchronize on the first line
+    wait 0 gpio rdata 
+    wait 1 gpio rdata
+    set x, 31
+
+lineloop:
+    wait 1 gpio rclk
+    wait 0 gpio rclk
+    jmp x-- lineloop
+
+    irq 4
 
 .wrap
 
@@ -80,6 +84,27 @@ static inline void dmd_reader_wpc_program_init(PIO pio, uint sm, uint offset) {
 
     // We only send, so disable the TX FIFO to make the RX FIFO deeper.
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+
+    // Load our configuration, do not yet start the program
+    pio_sm_init(pio, sm, offset, &c);
+}
+%}
+
+% c-sdk {
+static inline void dmd_framedetect_wpc_program_init(PIO pio, uint sm, uint offset) {
+
+    pio_sm_config c = dmd_framedetect_wpc_program_get_default_config(offset);
+
+    // Set the pin direction at the PIO
+    pio_sm_set_consecutive_pindirs(pio, sm, 0, 6, false);
+
+    // Connect these GPIOs to this PIO block
+    pio_gpio_init(pio, 0);
+    pio_gpio_init(pio, 1);
+    pio_gpio_init(pio, 2);
+    pio_gpio_init(pio, 3);
+    pio_gpio_init(pio, 4);
+    pio_gpio_init(pio, 5);
 
     // Load our configuration, do not yet start the program
     pio_sm_init(pio, sm, offset, &c);

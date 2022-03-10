@@ -10,6 +10,17 @@
 #include "dmd_counter.pio.h"
 #include "dmd_interface_wpc.pio.h"
 
+/**
+ * Glossary
+ * 
+ * Plane
+ *  image with one bit data per pixel. This doesn't NOT mean it is stored with 1bit/pixel
+ * 
+ * Frame
+ *  image with potentially more than one bit per pixel 
+ * 
+ */
+
 typedef struct buf32_t 
 {
     uint8_t byte0;
@@ -82,9 +93,13 @@ uint32_t planes_received=0;
 PIO spi_pio;
 uint spi_sm;
 
-// DMD PIO
+// DMD reader PIO
 PIO dmd_pio;
 uint dmd_sm;
+
+// Frame detection PIO
+PIO frame_pio;
+uint frame_sm;
 
 // DMA
 uint dmd_dma_chan = 0;
@@ -312,6 +327,14 @@ int init()
         dmd_sm = pio_claim_unused_sm(dmd_pio, true);
         dmd_reader_wpc_program_init(dmd_pio, dmd_sm, offset);
         printf("WPC DMD reader initialized\n");
+
+        // The framedetect program just runs and detects the beginning of a new frame
+        frame_pio = pio0;
+        offset = pio_add_program(frame_pio, &dmd_framedetect_wpc_program);
+        frame_sm = pio_claim_unused_sm(frame_pio, true);
+        dmd_reader_wpc_program_init(frame_pio, frame_sm, offset);
+        pio_sm_set_enabled(frame_pio, frame_sm, true);
+        printf("WPC frame detection initialized\n");
 
         lcd_width = 128;
         lcd_height = 32;
