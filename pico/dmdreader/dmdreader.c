@@ -4,10 +4,19 @@
 #include "hardware/gpio.h"
 #include "hardware/dma.h"
 #include "hardware/pio.h"
+#include "hardware/irq.h"
 
 #include "spi_slave_sender.pio.h"
 #include "dmd_counter.pio.h"
 #include "dmd_interface_wpc.pio.h"
+
+typedef struct buf32_t 
+{
+    uint8_t byte0;
+    uint8_t byte1;
+    uint8_t byte2;
+    uint8_t byte3;
+} buf32_t;
 
 // SPI data types and header blocks
 // header block length should always be a multiple of 32bit
@@ -53,8 +62,11 @@ uint16_t lcd_pixelsperframe;
 uint16_t lcd_wordsperplane;
 uint16_t lcd_bytesperplane;
 
-uint8_t pixbuf1[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL / 8] = {0xaa};
-uint8_t pixbuf2[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL / 8] = {0x55};
+uint8_t planebuf1[MAX_WIDTH * MAX_HEIGHT / 8] = {0xaa};
+uint8_t planebuf2[MAX_WIDTH * MAX_HEIGHT / 8] = {0x55};
+uint8_t *lastplane = planebuf2;
+
+uint32_t planes_received=0;
 
 // SPI PIO
 PIO spi_pio;
@@ -192,18 +204,48 @@ int detect_dmd()
  */
 int read_plane(uint8_t *capture_buf)
 {
-    uint32_t *dp=(uint32_t *)capture_buf;
-    pio_sm_set_enabled(dmd_pio, dmd_sm, false);
-    pio_sm_clear_fifos(dmd_pio, dmd_sm);
-    pio_sm_restart(dmd_pio, dmd_sm);
-
-    // SET DMA target address and immediately start transfer
-    dma_channel_set_write_addr(dmd_dma_chan,dp,true);
-
-    pio_sm_set_enabled(dmd_pio, dmd_sm, true);
-
-    sleep_ms(200);
+    
 }
+
+/**
+ * @brief Handles DMD DMA requests by switching between the buffers
+ * 
+ */
+void dmd_dma_handler() {
+
+    uint8_t *target;
+    uint32_t *databuf;
+
+    // Switch between buffers
+    if (lastplane == planebuf1) {
+        target = planebuf1;
+        lastplane = planebuf2;
+    } else {
+        target = planebuf2;
+        lastplane = planebuf1;
+    }
+
+    // Clear the interrupt request
+    dma_hw->ints0 = 1u << dmd_dma_chan;
+
+    // Start a new DMA transfer to the new buffer
+    dma_channel_set_write_addr(dmd_dma_chan,target,true);
+
+    // Just for debugging purposes
+    planes_received++;
+
+    // Fix order of the buffers
+    databuf = (uint32_t *)lastplane;
+    buf32_t *v;
+    uint32_t res;
+    for (int i=0; i<lcd_wordsperplane; i++) {
+        v=(buf32_t*)databuf;
+        res=(v->byte3 << 24) | (v->byte2 << 16) | (v->byte1 << 8) | (v->byte0);
+        *databuf=res;
+        databuf++;
+    }
+}
+
 
 int init()
 {
@@ -268,6 +310,10 @@ int init()
                           false                  // Do not yet start
     );
 
+    dma_channel_set_irq0_enabled(dmd_dma_chan, true);
+    irq_set_exclusive_handler(DMA_IRQ_0, dmd_dma_handler);
+    irq_set_enabled(DMA_IRQ_0, true);
+
     // DMA for SPI
     spi_dma_chan_cfg = dma_channel_get_default_config(spi_dma_chan);
     channel_config_set_read_increment(&spi_dma_chan_cfg, true);
@@ -281,6 +327,9 @@ int init()
                           false                  // Do not yet start
     );
 
+    // Finally start DMD reader PIO program and DMA
+    dmd_dma_handler();
+    pio_sm_set_enabled(dmd_pio, dmd_sm, true);
 
     return 0;
 }
@@ -294,8 +343,13 @@ int main()
         return 0;
     }
 
-    read_plane(pixbuf1);
-    spi_send_pix(pixbuf1);
+    // read_plane(pixbuf1);
+    sleep_ms(1000);
+    printf("",planes_received);
+    for (int i=0; i<80; i++) {
+        spi_send_pix(lastplane);
+        sleep_ms(1000);
+    }
 
     return 0;
 }
