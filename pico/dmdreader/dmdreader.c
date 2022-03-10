@@ -61,6 +61,7 @@ typedef struct __attribute__((__packed__)) block_pix_header_t
 // DMD types
 #define DMD_UNKNOWN 0
 #define DMD_WPC 1
+#define DMD_WHITESTAR 2
 
 // data buffer
 #define MAX_WIDTH 192
@@ -276,6 +277,11 @@ int detect_dmd()
     {
         printf("WPC detected\n");
         return DMD_WPC;
+    } else if ((dotclk > 640000) && (dotclk < 700000) &&
+        (de > 5000) && (de < 5300) &&
+        (rdata > 70) && (rdata < 85)) {
+        printf("Stern Whitestar detected\n");
+        return DMD_WHITESTAR;
     }
 
     return DMD_UNKNOWN;
