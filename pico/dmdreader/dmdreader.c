@@ -10,6 +10,7 @@
 #include "spi_slave_sender.pio.h"
 #include "dmd_counter.pio.h"
 #include "dmd_interface_wpc.pio.h"
+#include "dmd_interface_whitestar.pio.h"
 
 /**
  * Glossary
@@ -80,6 +81,8 @@ uint16_t lcd_bytesperplane;
 uint16_t lcd_planesperframe;
 uint16_t lcd_wordsperframe;
 uint16_t lcd_bytesperframe;
+uint16_t lcd_lineoversampling;
+uint16_t lcd_wordsperline;
 
 // raw data read from DMD
 uint8_t planebuf1[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL * MAX_PLANESPERFRAME / 8];
@@ -358,6 +361,26 @@ void dmd_dma_handler() {
         framebuf[px]=pixval;
     }
 
+    // deal with line oversampling directly within framebuf
+    if (lcd_lineoversampling==2) {
+        uint16_t i=0;
+        uint32_t *dst, *src1, *src2;
+        dst=src1=framebuf;
+        src2=framebuf+lcd_wordsperline;
+        uint32_t v;
+
+        for (int l=0; l<lcd_height; l++) {
+            for (int w=0; w<lcd_wordsperline; w++) {
+                v = (src1[w] + src2[w]) >> 1;
+                dst[w]=v;
+            }
+            src1 += lcd_wordsperline*2; // source skips 2 lines forward
+            src2 += lcd_wordsperline*2;
+            dst += lcd_wordsperline;     // destination skips only one line
+        }
+        
+    }
+
     frame_received=true;
 }
 
@@ -398,7 +421,7 @@ bool init()
         frame_pio = pio0;
         offset = pio_add_program(frame_pio, &dmd_framedetect_wpc_program);
         frame_sm = pio_claim_unused_sm(frame_pio, true);
-        dmd_reader_wpc_program_init(frame_pio, frame_sm, offset);
+        dmd_framedetect_wpc_program_init(frame_pio, frame_sm, offset);
         pio_sm_set_enabled(frame_pio, frame_sm, true);
         printf("WPC frame detection initialized\n");
 
@@ -407,20 +430,44 @@ bool init()
         lcd_bitsperpixel = 2;
         lcd_pixelsperbyte = 8 / lcd_bitsperpixel;
         lcd_planesperframe = 3;
+        lcd_lineoversampling = 1;
     }
-    else
+    else if (dmd_type == DMD_WHITESTAR) {
+        dmd_pio = pio0;
+        offset = pio_add_program(dmd_pio, &dmd_reader_whitestar_program);
+        dmd_sm = pio_claim_unused_sm(dmd_pio, true);
+        dmd_reader_whitestar_program_init(dmd_pio, dmd_sm, offset);
+        printf("Whitestar DMD reader initialized\n");
+
+        // The framedetect program just runs and detects the beginning of a new frame
+        frame_pio = pio0;
+        offset = pio_add_program(frame_pio, &dmd_framedetect_whitestar_program);
+        frame_sm = pio_claim_unused_sm(frame_pio, true);
+        dmd_framedetect_whitestar_program_init(frame_pio, frame_sm, offset);
+        pio_sm_set_enabled(frame_pio, frame_sm, true);
+        printf("Whitestar frame detection initialized\n");
+
+        lcd_width = 128;
+        lcd_height = 32;
+        lcd_bitsperpixel = 4;           // it's only 3, but padding to 4 makes things easier
+        lcd_pixelsperbyte = 8 / lcd_bitsperpixel;
+        lcd_planesperframe = 2;         // in Whitestar, there's a MSB and a LSB plane
+        lcd_lineoversampling = 2;       // in Whitestar each line is sent twice
+
+    } else 
     {
         printf("Unknown DMD type, aborting\n");
         return false;
     }
 
-    // Calculate Display parameters
+    // Calculate display parameters
     lcd_bytes = lcd_width * lcd_height * lcd_bitsperpixel / 8;
     lcd_pixelsperframe = lcd_width * lcd_height;
-    lcd_wordsperplane = lcd_bytes / 4;
+    lcd_wordsperplane = lcd_bytes / 4 * lcd_lineoversampling;
     lcd_bytesperplane = lcd_bytes;
     lcd_wordsperframe = lcd_wordsperplane * lcd_planesperframe;
     lcd_bytesperframe = lcd_bytesperplane * lcd_planesperframe;
+    lcd_wordsperline = lcd_width * lcd_bitsperpixel / 32;
 
     printf("LCD buffer initialized");
 

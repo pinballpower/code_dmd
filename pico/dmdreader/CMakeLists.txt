@@ -26,6 +26,7 @@ pico_set_program_version(${PROJECT_NAME} "0.1")
 pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/spi_slave_sender.pio)
 pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/dmd_counter.pio)
 pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/dmd_interface_wpc.pio)
+pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/dmd_interface_whitestar.pio)
 
 # Add the standard library to the build
 target_link_libraries(${PROJECT_NAME} pico_stdlib)
