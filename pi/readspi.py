@@ -19,10 +19,8 @@ print("SPI opened")
 # Translate bits to characters for different bits/pixel
 # 4 bit is really only 3 bit
 symbols = {
- 1: [" ","*"],
- 2: [" ",".","o","O" ],
- 3: [" "," ",".",".","o","o","O","O"],
- 4: [" "," ",".",".","o","o","O","O","O","O","O","O","O","O","O","O"],
+ "wpc": [" ","*"],
+ "whitestar": [" ",".","o","O","*","?","?","?","?","?","?","?","?","?","?","?"],
 }
 
 def move_cursor (y, x):
@@ -33,7 +31,7 @@ def print_image(columns, rows, bitsperpixel, data):
     pixelmask=0xff>>(8-bitsperpixel)
     pixelindex=0
     pixelbit=8
-    s=symbols[bitsperpixel]
+    s = symbols["whitestar"]
     for r in range(rows):
         rstr=""
         for c in range(columns):
@@ -43,7 +41,6 @@ def print_image(columns, rows, bitsperpixel, data):
                 pixelindex += 1
             d=data[pixelindex]
             pv = ((d >> pixelbit) & pixelmask)
-            #print(pv)
             rstr+=s[pv]
 
         print(rstr)
