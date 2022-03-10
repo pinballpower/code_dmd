@@ -16,6 +16,15 @@ spi.max_speed_hz=1000000
 
 print("SPI opened")
 
+# Translate bits to characters for different bits/pixel
+# 4 bit is really only 3 bit
+symbols = {
+ 1: [" ","*"],
+ 2: [" ",".","o","O" ],
+ 3: [" "," ",".",".","o","o","O","O"],
+ 4: [" "," ",".",".","o","o","O","O","O","O","O","O","O","O","O","O"],
+}
+
 def move_cursor (y, x):
     print("\033[%d;%dH" % (y, x))
 
@@ -24,6 +33,7 @@ def print_image(columns, rows, bitsperpixel, data):
     pixelmask=0xff>>(8-bitsperpixel)
     pixelindex=0
     pixelbit=8
+    s=symbols[bitsperpixel]
     for r in range(rows):
         rstr=""
         for c in range(columns):
@@ -32,16 +42,9 @@ def print_image(columns, rows, bitsperpixel, data):
                 pixelbit += 8
                 pixelindex += 1
             d=data[pixelindex]
-            pv = ((d >> pixelbit) & pixelmask);
-            if pv>2:
-                rstr+="*"
-            elif pv>1:
-                rstr+="o"
-            elif pv>0:
-                rstr+="."
-            else:
-                rstr+=" "
-
+            pv = ((d >> pixelbit) & pixelmask)
+            #print(pv)
+            rstr+=s[pv]
 
         print(rstr)
 
