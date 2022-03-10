@@ -16,9 +16,12 @@ spi.max_speed_hz=1000000
 
 print("SPI opened")
 
+def move_cursor (y, x):
+    print("\033[%d;%dH" % (y, x))
+
 def print_image(columns, rows, bitsperpixel, data):
+    move_cursor(0,0)
     pixelmask=0xff>>(8-bitsperpixel)
-    print(pixelmask)
     pixelindex=0
     pixelbit=8
     for r in range(rows):
@@ -43,7 +46,6 @@ def print_image(columns, rows, bitsperpixel, data):
         print(rstr)
 
 done=False
-todo=2000;
 
 while not(done):
     if not(GPIO.input(notify_gpio)):
@@ -68,16 +70,9 @@ while not(done):
     if (packettype==1):
         print(buf[:8])
         (columns, rows, _padding, bitsperpixel) = unpack(">HHHH",bytes(buf[:8]));
-        print("{}x{} pixel, {} bits/px".format(columns,rows,bitsperpixel))
+        # print("{}x{} pixel, {} bits/px".format(columns,rows,bitsperpixel))
 
         print_image(rows, columns, bitsperpixel, buf[8:])
-
-        todo -= 1;
-
-    if todo==0:
-        done=True
-
-    
 
     
 GPIO.cleanup()
