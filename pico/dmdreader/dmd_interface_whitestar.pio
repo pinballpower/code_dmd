@@ -30,8 +30,9 @@
 dotloop1:          
     wait 0 gpio dotclk  ; falling edge
     wait 1 gpio dotclk  ; raising edge
-    in null 3           ; padding
+    in null 2           ; padding
     in pins 1           ; read pin data
+    in null 1
     jmp x-- dotloop1
 
     mov x, y            ; load number of pixels
@@ -46,9 +47,9 @@ dotloop1:
 dotloop2:
     wait 0 gpio dotclk  ; falling edge
     wait 1 gpio dotclk  ; raising edge
-    in null 2           ; padding
+    in null 3           ; padding
     in pins 1           ; read pin data
-    in null 1           ; multiply *2
+    ;in null 1           ; multiply *2
     jmp x-- dotloop2
 
 
