@@ -5,6 +5,8 @@ import spidev
 import RPi.GPIO as GPIO
 from struct import unpack
 
+from dmddisplay.console import display_image
+
 notify_gpio=7
 
 GPIO.setmode(GPIO.BCM)
@@ -15,37 +17,6 @@ spi.open(1,0)
 spi.max_speed_hz=5000000
 
 print("SPI opened")
-
-# Translate bits to characters for different bits/pixel
-# 4 bit is really only 3 bit
-symbols = {
- "wpc": [" ","*"],
- "whitestar": [" ",".","o","O","*","?","?","?","?","?","?","?","?","?","?","?"],
- "spike": [" "," ",".",".",".","o","o","o","O","O","O","*","*","*","#","#"]
-}
-
-s=symbols["spike"];
-
-def move_cursor (y, x):
-    print("\033[%d;%dH" % (y, x))
-
-def print_image(columns, rows, bitsperpixel, data):
-    move_cursor(0,0)
-    pixelmask=0xff>>(8-bitsperpixel)
-    pixelindex=0
-    pixelbit=8
-    for r in range(rows):
-        rstr=""
-        for c in range(columns):
-            pixelbit -= bitsperpixel
-            if pixelbit < 0:
-                pixelbit += 8
-                pixelindex += 1
-            d=data[pixelindex]
-            pv = ((d >> pixelbit) & pixelmask)
-            rstr+=s[pv]
-
-        print(rstr)
 
 done=False
 
@@ -72,9 +43,8 @@ while not(done):
     if (packettype==1):
         print(buf[:8])
         (columns, rows, _padding, bitsperpixel) = unpack(">HHHH",bytes(buf[:8]));
-        # print("{}x{} pixel, {} bits/px".format(columns,rows,bitsperpixel))
-
-        print_image(rows, columns, bitsperpixel, buf[8:])
+        
+        display_image(rows, columns, bitsperpixel, buf[8:])
 
     
 GPIO.cleanup()
