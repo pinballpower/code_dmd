@@ -1,0 +1,11 @@
+*PIO state resource usage
+
+** SPI 
+
+This is a very small program with only 3 intructions
+It runs on PIO0, but if memory (there is only space for 32 instructions on each PIO), it might need to be moved to PIO1
+
+** DMD Reader and DMD Frame detection
+
+With the existing code, WPC, Whitestar and Spike1 still use less than 29 instructions for both frame detection and 
+reading of data. Therefore, they use the same PIO0 
