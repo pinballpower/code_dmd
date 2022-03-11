@@ -9,3 +9,4 @@ pico/dmdreader/pico-sdk/
 pico/dmdreader/pioasm/
 pico/dmdreader/CMakeFiles
 **/core
+*.pyc
