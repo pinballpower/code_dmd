@@ -11,6 +11,7 @@
 #include "dmd_counter.pio.h"
 #include "dmd_interface_wpc.pio.h"
 #include "dmd_interface_whitestar.pio.h"
+#include "dmd_interface_spike.pio.h"
 
 /**
  * Glossary
@@ -23,7 +24,9 @@
  * 
  */
 
-#define SENDFRAMES_SPI 1
+#define SPI_IRQ_PIN 17
+#define LED1_PIN 27
+#define LED2_PIN 28
 
 typedef struct buf32_t 
 {
@@ -63,6 +66,7 @@ typedef struct __attribute__((__packed__)) block_pix_header_t
 #define DMD_UNKNOWN 0
 #define DMD_WPC 1
 #define DMD_WHITESTAR 2
+#define DMD_SPIKE1 3
 
 // data buffer
 #define MAX_WIDTH 192
@@ -83,6 +87,7 @@ uint16_t lcd_wordsperframe;
 uint16_t lcd_bytesperframe;
 uint16_t lcd_lineoversampling;
 uint16_t lcd_wordsperline;
+bool lcd_shiftplanesatmerge=false;
 
 // raw data read from DMD
 uint8_t planebuf1[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL * MAX_PLANESPERFRAME / 8];
@@ -192,23 +197,23 @@ void spi_abort() {
 }
 
 /**
- * @brief Notify on pin 17 that data are ready on SPI
+ * @brief Notify on pin SPI_IRQ_PIN that data are ready on SPI
  * 
  * The SPI master (the Pico is slave) should start a data transfer when this signal is received
- * It toggles pin 17 to H
+ * It toggles pin SPI_IRQ_PIN to H
  * 
  */
 void start_spi()
 {
-    gpio_put(17, 1);
+    gpio_put(SPI_IRQ_PIN, 1);
 }
 
 /**
- * @brief Set pin 17 to L to signal that there is no active SPI data transfer
+ * @brief Set pin SPI_IRQ_PIN to L to signal that there is no active SPI data transfer
  * 
  */
 void finish_spi() {
-    gpio_put(17, 0);
+    gpio_put(SPI_IRQ_PIN, 0);
 }
 
 
@@ -282,9 +287,15 @@ int detect_dmd()
         return DMD_WPC;
     } else if ((dotclk > 640000) && (dotclk < 700000) &&
         (de > 5000) && (de < 5300) &&
-        (rdata > 70) && (rdata < 85)) {
+        (rdata > 70) && (rdata < 85)) 
+    {
         printf("Stern Whitestar detected\n");
         return DMD_WHITESTAR;
+    } else if ((dotclk > 1000000) && (dotclk < 1100000) &&
+        (de > 8000) && (de < 8400) &&
+        (rdata > 240) && (rdata < 270)) {
+        printf("Stern Spike1 detected\n");
+        return DMD_SPIKE1;
     }
 
     return DMD_UNKNOWN;
@@ -355,8 +366,12 @@ void dmd_dma_handler() {
     uint32_t *framebuf = (uint32_t *)lastframe;
     for (int px=0; px<lcd_wordsperplane; px++) {
         uint32_t pixval=0;
-        for (int frame=0; frame<lcd_planesperframe; frame++) {
-            pixval += planebuf[offset[frame]+px];
+        for (int plane=0; plane<lcd_planesperframe; plane++) {
+            uint32_t v=planebuf[offset[plane]+px];
+            if (lcd_shiftplanesatmerge) {
+                v <<= plane;
+            }
+            pixval += v;
         }
         framebuf[px]=pixval;
     }
@@ -392,21 +407,19 @@ bool init()
     printf("DMD reader starting\n");
 
     // this is uses to notify the Pi that data is available
-    gpio_init(17);
-    gpio_set_dir(17, GPIO_OUT);
-    gpio_put(17, 0);
+    gpio_init(SPI_IRQ_PIN);
+    gpio_set_dir(SPI_IRQ_PIN, GPIO_OUT);
+    gpio_put(SPI_IRQ_PIN, 0);
     printf("IRQ pin initialized\n");
 
-    // initialize SPI slave PIO
-    spi_pio = pio0;
-    uint offset = pio_add_program(spi_pio, &clocked_output_program);
-    spi_sm = pio_claim_unused_sm(spi_pio, true);
-    clocked_output_program_init(spi_pio, spi_sm, offset, SPI_BASE);
-    printf("SPI slave initialized \n");
+    int dmd_type=DMD_UNKNOWN;
+    // Loop until the DMD is detected as it might need some time to be available
+    // on power-on
+    while (dmd_type == DMD_UNKNOWN) {
+        dmd_type = detect_dmd();
+    } 
 
-    // Initialize DMD counter (only used for initialization)
-
-    int dmd_type = detect_dmd();
+    uint offset;
 
     // Initialize DMD reader
     if (dmd_type == DMD_WPC)
@@ -431,8 +444,7 @@ bool init()
         lcd_pixelsperbyte = 8 / lcd_bitsperpixel;
         lcd_planesperframe = 3;
         lcd_lineoversampling = 1;
-    }
-    else if (dmd_type == DMD_WHITESTAR) {
+    } else if (dmd_type == DMD_WHITESTAR) {
         dmd_pio = pio0;
         offset = pio_add_program(dmd_pio, &dmd_reader_whitestar_program);
         dmd_sm = pio_claim_unused_sm(dmd_pio, true);
@@ -454,8 +466,30 @@ bool init()
         lcd_planesperframe = 2;         // in Whitestar, there's a MSB and a LSB plane
         lcd_lineoversampling = 2;       // in Whitestar each line is sent twice
 
-    } else 
-    {
+    } else if (dmd_type == DMD_SPIKE1) {
+        dmd_pio = pio0;
+        offset = pio_add_program(dmd_pio, &dmd_reader_spike_program);
+        dmd_sm = pio_claim_unused_sm(dmd_pio, true);
+        dmd_reader_spike_program_init(dmd_pio, dmd_sm, offset);
+        printf("Spike DMD reader initialized\n");
+
+        // The framedetect program just runs and detects the beginning of a new frame
+        frame_pio = pio0;
+        offset = pio_add_program(frame_pio, &dmd_framedetect_spike_program);
+        frame_sm = pio_claim_unused_sm(frame_pio, true);
+        dmd_framedetect_spike_program_init(frame_pio, frame_sm, offset);
+        pio_sm_set_enabled(frame_pio, frame_sm, true);
+        printf("Spike frame detection initialized\n");
+
+        lcd_width = 128;
+        lcd_height = 32;
+        lcd_bitsperpixel = 4;           
+        lcd_pixelsperbyte = 8 / lcd_bitsperpixel;
+        lcd_planesperframe = 4;         // in Spike there are 4 planes
+        lcd_lineoversampling = 1;       // no line oversampling
+        lcd_shiftplanesatmerge = true;
+
+    } else {
         printf("Unknown DMD type, aborting\n");
         return false;
     }
@@ -487,6 +521,13 @@ bool init()
     dma_channel_set_irq0_enabled(dmd_dma_chan, true);
     irq_set_exclusive_handler(DMA_IRQ_0, dmd_dma_handler);
     irq_set_enabled(DMA_IRQ_0, true);
+
+    // initialize SPI slave PIO
+    spi_pio = pio0;
+    offset = pio_add_program(spi_pio, &clocked_output_program);
+    spi_sm = pio_claim_unused_sm(spi_pio, true);
+    clocked_output_program_init(spi_pio, spi_sm, offset, SPI_BASE);
+    printf("SPI slave initialized \n");
 
     // DMA for SPI
     spi_dma_chan_cfg = dma_channel_get_default_config(spi_dma_chan);
