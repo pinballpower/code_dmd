@@ -12,7 +12,7 @@ GPIO.setup(notify_gpio, GPIO.IN)
 
 spi = spidev.SpiDev()
 spi.open(1,0)
-spi.max_speed_hz=1000000
+spi.max_speed_hz=5000000
 
 print("SPI opened")
 
