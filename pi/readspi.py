@@ -21,7 +21,10 @@ print("SPI opened")
 symbols = {
  "wpc": [" ","*"],
  "whitestar": [" ",".","o","O","*","?","?","?","?","?","?","?","?","?","?","?"],
+ "spike": [" "," ",".",".",".","o","o","o","O","O","O","*","*","*","#","#"]
 }
+
+s=symbols["spike"];
 
 def move_cursor (y, x):
     print("\033[%d;%dH" % (y, x))
@@ -31,7 +34,6 @@ def print_image(columns, rows, bitsperpixel, data):
     pixelmask=0xff>>(8-bitsperpixel)
     pixelindex=0
     pixelbit=8
-    s = symbols["whitestar"]
     for r in range(rows):
         rstr=""
         for c in range(columns):
