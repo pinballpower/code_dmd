@@ -10,3 +10,4 @@ pico/dmdreader/pioasm/
 pico/dmdreader/CMakeFiles
 **/core
 *.pyc
+**/out/**
