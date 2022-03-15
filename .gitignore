@@ -11,3 +11,4 @@ pico/dmdreader/CMakeFiles
 **/core
 *.pyc
 **/out/**
+.vs
