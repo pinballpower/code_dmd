@@ -10,128 +10,151 @@
 #include "dmdframe.h"
 
 DMDFrame::DMDFrame(int columns1, int rows1, int bitsperpixel1, uint8_t* data1)
-	{
-		columns = columns1;
-		rows = rows1;
-		bitsperpixel = bitsperpixel1;
-		data = NULL;
-		checksum = 0;
-		pixel_mask = 0;
+{
+	columns = columns1;
+	rows = rows1;
+	bitsperpixel = bitsperpixel1;
+	data = NULL;
+	checksum = 0;
+	pixel_mask = 0;
 
-		this->init_mem(data1);
-	}
+	this->init_mem(data1);
+}
 
 
 DMDFrame::~DMDFrame() {
-
-		if (data) {
-			free(data);
-		}
+	if (data) {
+		delete[] data;
 	}
+}
 
 PIXVAL DMDFrame::getPixel(int x, int y) {
-		int offset = y * rowlen + x / bitsperpixel;
-		int pixoffset = 8 - (x % bitsperpixel);
-		return (data[offset] >> pixoffset) & pixel_mask;
+	int offset = y * rowlen + x / bitsperpixel;
+	int pixoffset = 8 - (x % bitsperpixel);
+	return (data[offset] >> pixoffset) & pixel_mask;
+}
+
+int DMDFrame::read_from_stream(std::ifstream& fis)
+{
+	if ((!fis.good()) || fis.eof()) {
+		return -1;
 	}
 
-bool DMDFrame::read_from_stream(std::ifstream& fis)
-	{
-		if ((!fis.good()) || fis.eof()) {
-			return false;
-		}
+	uint8_t header[8];
+	try {
+		fis.read((char*)header, 8);
+		rows = (header[0] << 8) + header[1];
+		columns = (header[2] << 8) + header[3];
+		bitsperpixel = (header[6] << 8) + header[7];
+		this->init_mem(NULL);
 
-		uint8_t header[8];
-		try {
-			fis.read((char*)header, 8);
-			rows = (header[0] << 8) + header[1];
-			columns = (header[2] << 8) + header[3];
-			bitsperpixel = (header[6] << 8) + header[7];
-			this->init_mem(NULL);
-
-			fis.read((char*)data, datalen);
-			recalc_checksum();
-		}
-		catch (std::ios_base::failure) {
-			return false;
-		}
-
-		return true;
+		fis.read((char*)data, datalen);
+		recalc_checksum();
+	}
+	catch (std::ios_base::failure) {
+		return -1;
 	}
 
-	bool DMDFrame::same_size(DMDFrame f2) {
-		return ((columns = f2.columns) && (rows = f2.rows) && (bitsperpixel = f2.bitsperpixel));
+	return 0;
+}
+
+bool DMDFrame::same_size(DMDFrame* f2) {
+	return ((columns = f2->columns) && (rows = f2->rows) && (bitsperpixel = f2->bitsperpixel));
+}
+
+bool DMDFrame::equals_fast(DMDFrame* f2) {
+	if (this->same_size(f2)) {
+		return checksum == f2->checksum;
 	}
-
-	bool DMDFrame::equals_fast(DMDFrame f2) {
-		if (this->same_size(f2)) {
-			return checksum == f2.checksum;
-		}
-		else {
-			return false;
-		}
+	else {
+		return false;
 	}
+}
 
-	std::string DMDFrame::str() {
-		char cs[8];
-		snprintf(cs, sizeof(cs), "%08x", checksum);
-		return "DMDFrame(" + std::to_string(columns) + "x" + std::to_string(rows) + "," + std::to_string(bitsperpixel) + "bpp, checksum=" + cs + ")";
+std::string DMDFrame::str() {
+	char cs[8];
+	snprintf(cs, sizeof(cs), "%08x", checksum);
+	return "DMDFrame(" + std::to_string(columns) + "x" + std::to_string(rows) + "," + std::to_string(bitsperpixel) + "bpp, checksum=" + cs + ")";
+}
+
+void DMDFrame::recalc_checksum() {
+	if (data && datalen) {
+		checksum = crc32buf(data, datalen);
 	}
+	else {
+		checksum = 0;
+	};
+}
 
-	void DMDFrame::recalc_checksum() {
-		if (data && datalen) {
-			checksum = crc32buf(data, datalen);
-		}
-		else {
-			checksum = 0;
-		};
-	}
+void DMDFrame::init_mem(uint8_t* data1) {
+	rowlen = columns * bitsperpixel / 8;
+	datalen = rowlen * rows;
+	pixel_mask = 0xff >> (8 - bitsperpixel);
 
-	void DMDFrame::init_mem(uint8_t* data1) {
-		rowlen = columns * bitsperpixel / 8;
-		datalen = rowlen * rows;
-		pixel_mask = 0xff >> (8 - bitsperpixel);
+	if (datalen) {
 
-		if (datalen) {
-
-			if (data) {
-				free(data);
-				data = NULL;
-			}
-
-			data = (uint8_t*)malloc(datalen);
-
-			if (data1) {
-				memcpy_s(data, datalen, data1, datalen);
-			}
-			else if (data) {
-				memset(data, 0, datalen);
-			}
-
-			recalc_checksum();
-		}
-		else {
+		if (data) {
+			delete[] data;
 			data = NULL;
 		}
+
+		data = new uint8_t[datalen];
+
+		if (data1) {
+			memcpy_s(data, datalen, data1, datalen);
+		}
+		else {
+			memset(data, 0, datalen);
+		}
+
+		recalc_checksum();
+	}
+	else {
+		data = NULL;
+	}
+}
+
+DMDFrame* DMDFrame::to_gray8() {
+	DMDFrame* res = new DMDFrame(columns, rows, 8);
+
+	int pixel_bit = 8;
+	uint8_t *src = data;
+	uint8_t *dst = res->data;
+
+	int shift = 8 - bitsperpixel;
+
+	for (int pixel = 0; pixel < rows*columns; pixel++) {
+		pixel_bit -= bitsperpixel;
+		if (pixel_bit < 0) {
+			pixel_bit += 8;
+			src++;
+		}
+
+		// copy pixel
+		*dst = ((*src >> pixel_bit) & pixel_mask) << shift;
+		dst++;
 	}
 
+	return res;
+}
 
-	int DMDFrame::get_width() {
-		return columns;
-	}
 
-	int DMDFrame::get_height() {
-		return rows;
-	}
+int DMDFrame::get_width() {
+	return columns;
+}
 
-	uint8_t* DMDFrame::get_data() {
-		return data;
-	}
+int DMDFrame::get_height() {
+	return rows;
+}
 
-	uint8_t DMDFrame::get_pixelmask() {
-		return pixel_mask;
-	}
+uint8_t* DMDFrame::get_data() {
+	return data;
+}
 
-	int DMDFrame::get_bitsperpixel() {
-		return bitsperpixel;
-	}
+uint8_t DMDFrame::get_pixelmask() {
+	return pixel_mask;
+}
+
+int DMDFrame::get_bitsperpixel() {
+	return bitsperpixel;
+}

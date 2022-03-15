@@ -28,10 +28,10 @@ public:
 
 	PIXVAL getPixel(int x, int y);
 
-	bool read_from_stream(std::ifstream& fis);
+	int read_from_stream(std::ifstream& fis);
 
-	bool same_size(DMDFrame f2);
-	bool equals_fast(DMDFrame f2);
+	bool same_size(DMDFrame* f2);
+	bool equals_fast(DMDFrame* f2);
 
 	int get_width();
 	int get_height();
@@ -41,6 +41,11 @@ public:
 	uint8_t* get_data();
 
 	string str();
+
+	/*
+	 * Convert to 8 bits per pixel
+	 */
+	DMDFrame* to_gray8();
 
 
 private:
@@ -54,4 +59,16 @@ private:
 	uint16_t rowlen;
 	uint16_t pixel_mask;
 	uint32_t checksum; // uses for fast equality check
+};
+
+class MaskedDMDFrame : DMDFrame {
+
+	bool matches(DMDFrame* f);
+
+	int read_from_bmp(string filename, int bitsperpixel);
+
+private:
+
+	uint8_t* mask;
+
 };
