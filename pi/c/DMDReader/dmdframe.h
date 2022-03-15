@@ -14,7 +14,7 @@ using namespace std;
 
 class DMDFrame {
 
-private:
+protected:
 
 	int columns;
 	int rows;
@@ -46,26 +46,40 @@ public:
 	 * Convert to 8 bits per pixel
 	 */
 	DMDFrame* to_gray8();
+	DMDFrame* to_gray1(int threshold = 1);
+	
 
-
-private:
+protected:
 
 	void recalc_checksum();
 
-	void init_mem(uint8_t* data1 = NULL);
+	void init_mem(uint8_t *data1 = NULL);
 
 	// cache some stuff
-	uint16_t datalen;
-	uint16_t rowlen;
-	uint16_t pixel_mask;
+	int datalen;
+	int rowlen;
+	uint8_t pixel_mask;
 	uint32_t checksum; // uses for fast equality check
+
+	uint8_t next_pixel(uint8_t **buf, int *bit_index);
 };
 
 class MaskedDMDFrame : DMDFrame {
 
+public:
+
+	MaskedDMDFrame();
+	~MaskedDMDFrame();
+
 	bool matches(DMDFrame* f);
 
-	int read_from_bmp(string filename, int bitsperpixel);
+	/**
+	 * Read a frame from a BMP file
+	 *
+	 * grayindex: offset of the color to use as the gray channel
+	 * B=0, G=1, R=2
+	 */
+	int read_from_bmp(string filename, int grayoffset = 2, int maskoffset = 0);
 
 private:
 

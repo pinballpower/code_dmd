@@ -1,4 +1,4 @@
-#include <stdint.h> 
+#include <cstdint>
 #include "crc32.h"
 
 static uint32_t crc_32_tab[] = { /* CRC polynomial 0xedb88320 */

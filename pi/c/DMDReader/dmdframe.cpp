@@ -8,6 +8,7 @@
 #include "util/crc32.h"
 
 #include "dmdframe.h"
+#include "util/numutils.h"
 
 DMDFrame::DMDFrame(int columns1, int rows1, int bitsperpixel1, uint8_t* data1)
 {
@@ -88,7 +89,10 @@ void DMDFrame::recalc_checksum() {
 
 void DMDFrame::init_mem(uint8_t* data1) {
 	rowlen = columns * bitsperpixel / 8;
-	datalen = rowlen * rows;
+
+	// make sure it's 32bit aligned (usually it should be, but just to be sure)
+	datalen = roundup_4(rowlen * rows);
+
 	pixel_mask = 0xff >> (8 - bitsperpixel);
 
 	if (datalen) {
@@ -114,6 +118,17 @@ void DMDFrame::init_mem(uint8_t* data1) {
 	}
 }
 
+inline uint8_t DMDFrame::next_pixel(uint8_t **buf, int *pixel_bit) {
+	*pixel_bit -= bitsperpixel;
+	if (*pixel_bit < 0) {
+		*pixel_bit += 8;
+		(*buf)++;
+	}
+
+	return ((**buf >> *pixel_bit) & pixel_mask);
+}
+
+
 DMDFrame* DMDFrame::to_gray8() {
 	DMDFrame* res = new DMDFrame(columns, rows, 8);
 
@@ -124,16 +139,48 @@ DMDFrame* DMDFrame::to_gray8() {
 	int shift = 8 - bitsperpixel;
 
 	for (int pixel = 0; pixel < rows*columns; pixel++) {
-		pixel_bit -= bitsperpixel;
-		if (pixel_bit < 0) {
-			pixel_bit += 8;
-			src++;
-		}
+		uint8_t pv = next_pixel(&src, &pixel_bit);
 
 		// copy pixel
-		*dst = ((*src >> pixel_bit) & pixel_mask) << shift;
+		*dst = pv << shift;
 		dst++;
 	}
+
+	res->recalc_checksum();
+
+	return res;
+}
+
+DMDFrame* DMDFrame::to_gray1(int threshold) {
+	DMDFrame* res = new DMDFrame(columns, rows, 1);
+
+	int src_bit = 8;
+	int dst_bit = 8;
+
+	uint8_t* src = data;
+	uint8_t* dst = res->data;
+	uint8_t nv = 0;
+
+	int shift = 8 - bitsperpixel;
+
+	for (int pixel = 0; pixel < rows * columns; pixel++) {
+		uint8_t pv = next_pixel(&src, &src_bit);
+
+
+		dst_bit -= 1;
+		nv <<= 1;
+		if (pv > threshold) {
+			nv += 1;
+		}
+		if (dst_bit <= 0) {
+			*dst = nv;
+			nv = 0;
+			dst_bit += 8;
+			dst++;
+		}
+	}
+
+	res->recalc_checksum();
 
 	return res;
 }
@@ -157,4 +204,134 @@ uint8_t DMDFrame::get_pixelmask() {
 
 int DMDFrame::get_bitsperpixel() {
 	return bitsperpixel;
+}
+
+MaskedDMDFrame::MaskedDMDFrame() {
+	mask = NULL;
+}
+
+MaskedDMDFrame::~MaskedDMDFrame() {
+	if (mask) {
+		delete[] mask;
+	}
+}
+
+bool MaskedDMDFrame::matches(DMDFrame* frame) {
+
+	if ((frame->get_bitsperpixel() != DMDFrame::bitsperpixel) ||
+		(frame->get_width() != DMDFrame::columns) ||
+		(frame->get_height() != DMDFrame::rows)) 
+	{
+		return false;
+	}
+
+	/* Everything is 4-byte aligned, therefore we'll use 32-bit operators */
+	uint32_t* orig = (uint32_t * )frame->get_data();
+	uint32_t* to_compare = (uint32_t*) DMDFrame::data;
+	uint32_t* msk = (uint32_t*)mask;
+
+	for (int i = 0; i < DMDFrame::datalen / 4; i++) {
+		if ((*orig & *msk) != *to_compare) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+int MaskedDMDFrame::read_from_bmp(string filename, int grayoffset, int maskoffset) {
+
+	int i;
+	ifstream is;
+	is.open(filename, ios::binary);
+
+	uint8_t info[54];
+	is.read((char*)info, sizeof(info)); // read the 54-byte header
+
+	// extract image height and width from header
+	int width = *(int*)&info[18];
+	int height = *(int*)&info[22];
+	int row_padded = (width * 3 + 3) & (~3);
+	uint8_t* linedata = new uint8_t[row_padded];
+	uint8_t tmp;
+
+	// Initialize memory
+	DMDFrame::columns = width;
+	DMDFrame::rows = height;
+	DMDFrame::bitsperpixel = 8;
+	init_mem();
+	if (mask) {
+		delete[] mask;
+	};
+	mask = new uint8_t[width * height];
+
+
+	// Mask calculations
+	int mask_x1, mask_x2, mask_y1, mask_y2;
+	mask_x1 = columns + 1;
+	mask_x2 = -1;
+	mask_y1 = rows + 1;
+	mask_y2 = -1;
+
+	uint8_t* dst = data;
+
+	for (int y = height-1; y >= 0; y--)
+	{
+		is.read((char*)linedata, row_padded);
+		// As BMPs are stored upside down, we have to reset the pointer on each line
+		dst = data + (y * rowlen);
+
+		int offset = 0;
+		for (int x = 0; x < width; x++, offset+=3)
+		{
+			if (linedata[offset + maskoffset]) {
+				if (x < mask_x1) {
+					mask_x1 = x;
+				}
+				if (x > mask_x2) {
+					mask_x2 = x;
+				}
+				if (y < mask_y1) {
+					mask_y1 = y;
+				}
+				if (y > mask_y2) {
+					mask_y2 = y;
+				}
+			}
+
+			*dst = linedata[offset + grayoffset];
+			dst++;
+
+		}
+	}
+
+	// Masking
+	dst = data;
+	uint8_t* msk = mask;
+	if ((mask_x1 <= mask_x2) && (mask_y1 <= mask_y2)) {
+		// mask rectangle found
+		for (int y = 0; y < height; y++) {
+			for (int x = 0; x < width; x++) {
+				if ((x <= mask_x1) || (x >= mask_x2) || (y <= mask_y1) || (y >= mask_y2)) {
+					*dst = 0;
+					*msk = 0;
+				}
+				else {
+					*msk = 0xff;
+				}
+				// next pixel
+				dst++;
+				msk++;
+			}
+		}
+	}
+
+	DMDFrame::recalc_checksum();
+
+	delete[] linedata;
+	delete[] mask;
+
+	is.close();
+
+	return 0;
 }

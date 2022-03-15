@@ -16,7 +16,7 @@ RaylibRenderer::RaylibRenderer(int width1, int height1, int px_radius1, int px_s
     px_spacing = px_spacing1;
 
     palette_size = 1 << bits_per_pixel;
-    palette = (Color*)malloc(sizeof(Color) * palette_size);
+    palette = new Color[palette_size];
     if (palette) {
         for (int i = 0; i < palette_size; i++) {
             palette[i]=Fade(RED, i*((float)1/(palette_size-1)));
@@ -29,7 +29,7 @@ RaylibRenderer::RaylibRenderer(int width1, int height1, int px_radius1, int px_s
 RaylibRenderer::~RaylibRenderer() {
 	CloseWindow();
     if (palette) {
-        free(palette);
+        delete[] palette;
     }
 }
 
