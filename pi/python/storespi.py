@@ -24,6 +24,8 @@ seen = {}
 outputfile=open("spiimage.dat","wb")
 
 done=False
+storeAll=True
+lastd=0
 
 while not(done):
     if not(GPIO.input(notify_gpio)):
@@ -48,6 +50,14 @@ while not(done):
             seen[d]=1
             print(d)
             outputfile.write(data)
+        elif storeAll:
+            if d != lastd:
+                print(d)
+                outputfile.write(data)
+        lastd=d
+          
+        
+ 
 
     time.sleep(0.01)
 
