@@ -6,6 +6,7 @@
 #include <string>
 #include <chrono>
 #include <thread>
+#include <filesystem>
 
 #include "dmdframe.h"
 #include "dmddata.h"
@@ -37,7 +38,7 @@ std::vector<DMDFrame*> readfile(string name) {
 			cout << frame.str() << "\n";
 		};
 
-		DMDFrame* framegray = frame.to_gray1();
+		DMDFrame* framegray = frame.to_gray8();
 		cout << framegray->str() << "\n";
 
 		res.push_back(framegray);
@@ -48,23 +49,24 @@ std::vector<DMDFrame*> readfile(string name) {
 
 int main()
 {
+	string datadir = "../../../../../samples/";
 
 	RaylibRenderer rr = RaylibRenderer(128 * 11,32 * 11,5,1,1);
 
-	std::vector<DMDFrame*> frames=readfile("C:\\Users\\matuschd\\devel\\pico\\code_dmd\\pi\\samples\\spiimage-ghostbusters.dat");
+	cout << std::filesystem::current_path() << endl;
+	std::vector<DMDFrame*> frames=readfile(datadir+"spiimage-ghostbusters3.dat");
 	// std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 	
 	DMDFrame frame = DMDFrame();
-	// rr.showImage(&frame);
 
 	MaskedDMDFrame mframe = MaskedDMDFrame();
-	mframe.read_from_bmp("C:\\Users\\matuschd\\devel\\pico\\code_dmd\\pi\\samples\\ghostbusters-2.bmp");
-	//rr.showImage((DMDFrame*) & mframe);
+	mframe.read_from_bmp(datadir+"ghostbusters-2.bmp");
 
 	int i = 0;
 	for (auto& f : frames) {
 		i++;
 		rr.showImage(f);
+		std::this_thread::sleep_for(std::chrono::milliseconds(50));
 		if (mframe.matches(f)) {
 			cout << f->str() << "\n";
 		}
