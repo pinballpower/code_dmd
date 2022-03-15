@@ -8,10 +8,10 @@
 #include <thread>
 #include <filesystem>
 
-#include "dmdframe.h"
-#include "dmddata.h"
-#include "DMDReader.h"
+#include "dmd/dmdframe.h"
+#include "dmd/dmddata.h"
 #include "util/crc32.h"
+#include "DMDReader.h"
 
 #include "render/framerenderer.h"
 #include "render/raylibrenderer.h"
@@ -31,18 +31,20 @@ std::vector<DMDFrame*> readfile(string name) {
 	DMDFrame frame = DMDFrame();
 
 	int rc = 0;
+	int i = 0;
 
 	while (rc==0) {
 		rc = frame.read_from_stream(df);
 		if (rc==0) {
-			cout << frame.str() << "\n";
+			// cout << frame.str() << "\n";
 		};
 
 		DMDFrame* framegray = frame.to_gray8();
-		cout << framegray->str() << "\n";
 
 		res.push_back(framegray);
 	}
+
+	cout << "Loaded " << res.size() << " frames\n";
 
 	return res;
 }
@@ -51,7 +53,7 @@ int main()
 {
 	string datadir = "../../../../../samples/";
 
-	RaylibRenderer rr = RaylibRenderer(128 * 11,32 * 11,5,1,1);
+	RaylibRenderer rr = RaylibRenderer(128 * 11,32 * 11,5,1,8);
 
 	cout << std::filesystem::current_path() << endl;
 	std::vector<DMDFrame*> frames=readfile(datadir+"spiimage-ghostbusters3.dat");
@@ -60,13 +62,19 @@ int main()
 	DMDFrame frame = DMDFrame();
 
 	MaskedDMDFrame mframe = MaskedDMDFrame();
-	mframe.read_from_bmp(datadir+"ghostbusters-2.bmp");
+	mframe.read_from_bmp(datadir+"gbpub/54.bmp");
+	rr.showImage((DMDFrame*) &mframe);
 
 	int i = 0;
 	for (auto& f : frames) {
 		i++;
+		if (i < 461) {
+			continue;
+		};
+
 		rr.showImage(f);
-		std::this_thread::sleep_for(std::chrono::milliseconds(50));
+		cout << i << "\n";
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		if (mframe.matches(f)) {
 			cout << f->str() << "\n";
 		}

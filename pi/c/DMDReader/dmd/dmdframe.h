@@ -6,7 +6,7 @@
 #include <memory>
 #include <string>
 
-#include "util/crc32.h"
+#include "../util/crc32.h"
 
 #define  PIXVAL uint8_t  // we don't deal with more than 8 bits/pixel
 
@@ -43,7 +43,7 @@ public:
 	string str();
 
 	/*
-	 * Convert to 8 bits per pixel
+	 * Convert bits per pixel
 	 */
 	DMDFrame* to_gray8();
 	DMDFrame* to_gray1(int threshold = 1);
@@ -77,9 +77,9 @@ public:
 	 * Read a frame from a BMP file
 	 *
 	 * grayindex: offset of the color to use as the gray channel
-	 * B=0, G=1, R=2
+	 * R=0, G=1, B=2
 	 */
-	int read_from_bmp(string filename, int grayoffset = 2, int maskoffset = 0);
+	int read_from_bmp(string filename, int grayoffset = 0, int maskoffset = 2);
 
 private:
 

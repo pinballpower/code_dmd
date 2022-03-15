@@ -5,10 +5,11 @@
 #include <memory>
 #include <string>
 
-#include "util/crc32.h"
+#include "../util/crc32.h"
+#include "../util/bmp.h"
 
 #include "dmdframe.h"
-#include "util/numutils.h"
+#include "../util/numutils.h"
 
 DMDFrame::DMDFrame(int columns1, int rows1, int bitsperpixel1, uint8_t* data1)
 {
@@ -186,6 +187,8 @@ DMDFrame* DMDFrame::to_gray1(int threshold) {
 }
 
 
+
+
 int DMDFrame::get_width() {
 	return columns;
 }
@@ -234,6 +237,9 @@ bool MaskedDMDFrame::matches(DMDFrame* frame) {
 		if ((*orig & *msk) != *to_compare) {
 			return false;
 		}
+		*orig++;
+		*msk++;
+		*to_compare++;
 	}
 
 	return true;
@@ -241,19 +247,13 @@ bool MaskedDMDFrame::matches(DMDFrame* frame) {
 
 int MaskedDMDFrame::read_from_bmp(string filename, int grayoffset, int maskoffset) {
 
-	int i;
-	ifstream is;
-	is.open(filename, ios::binary);
+	int width = 0;
+	int height = 0;
+	uint8_t* bmp_data = read_BMP(filename, &width, &height);
 
-	uint8_t info[54];
-	is.read((char*)info, sizeof(info)); // read the 54-byte header
-
-	// extract image height and width from header
-	int width = *(int*)&info[18];
-	int height = *(int*)&info[22];
-	int row_padded = (width * 3 + 3) & (~3);
-	uint8_t* linedata = new uint8_t[row_padded];
-	uint8_t tmp;
+	if ((width <= 0) || (height <= 0)) {
+		return -1;
+	}
 
 	// Initialize memory
 	DMDFrame::columns = width;
@@ -273,18 +273,12 @@ int MaskedDMDFrame::read_from_bmp(string filename, int grayoffset, int maskoffse
 	mask_y1 = rows + 1;
 	mask_y2 = -1;
 
-	uint8_t* dst = data;
+	uint8_t* src = bmp_data;
+	uint8_t* dst = DMDFrame::data;
 
-	for (int y = height-1; y >= 0; y--)
-	{
-		is.read((char*)linedata, row_padded);
-		// As BMPs are stored upside down, we have to reset the pointer on each line
-		dst = data + (y * rowlen);
-
-		int offset = 0;
-		for (int x = 0; x < width; x++, offset+=3)
-		{
-			if (linedata[offset + maskoffset]) {
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			if (src[maskoffset]) {
 				if (x < mask_x1) {
 					mask_x1 = x;
 				}
@@ -299,7 +293,9 @@ int MaskedDMDFrame::read_from_bmp(string filename, int grayoffset, int maskoffse
 				}
 			}
 
-			*dst = linedata[offset + grayoffset];
+			*dst = src[grayoffset];
+	
+			src += 3;
 			dst++;
 
 		}
@@ -328,10 +324,7 @@ int MaskedDMDFrame::read_from_bmp(string filename, int grayoffset, int maskoffse
 
 	DMDFrame::recalc_checksum();
 
-	delete[] linedata;
-	delete[] mask;
-
-	is.close();
+	delete[] bmp_data;
 
 	return 0;
 }

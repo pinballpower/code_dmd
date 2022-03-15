@@ -2,48 +2,62 @@
 
 #include <cstdio>
 #include <cstdint>
+#include <iostream>
+#include <fstream>
 
-unsigned char* ReadBMP(char* filename, int* width1, int* height1)
+using namespace std;
+
+uint8_t* read_BMP(std::string filename, int* width1, int* height1)
 {
-
     *width1 = 0;
     *height1 = 0;
 
     int i;
-    FILE* f = fopen(filename, "rb");
+    
+    ifstream is;
+    is.exceptions(ifstream::failbit | ifstream::badbit);
+    is.open(filename, ios::binary);
 
-    if (f == NULL)
-        throw "Argument Exception";
+    uint8_t info[54];
+    is.read((char*)info, sizeof(info)); // read the 54-byte header
 
-    unsigned char info[54];
-    fread(info, sizeof(unsigned char), 54, f); // read the 54-byte header
-
+    // check if it is the format with the 54 byte header
+    if (info[14] != 40) {
+        cerr << "Can't read " << filename << ", only BITMAPINFOHEADER supported, but type is " << info[14] << "\n";
+    }
+    
     // extract image height and width from header
     int width = *(int*)&info[18];
     int height = *(int*)&info[22];
 
     int row_padded = (width * 3 + 3) & (~3);
-    uint8_t* data = new uint8_t[row_padded];
-    uint8_t tmp;
+    int bytesperline = 3 * width;
+
+    uint8_t* linedata = new uint8_t[row_padded];
+    uint8_t* res = new uint8_t[width * height * 3];
+
+    uint8_t* dst;
 
     for (int i = 0; i < height; i++)
     {
-        fread(data, sizeof(unsigned char), row_padded, f);
-        for (int j = 0; j < width * 3; j += 3)
+        is.read((char*)linedata, row_padded);
+        dst = res + ((height-1-i) * bytesperline);
+
+        for (int j = 0; j < width * 3; j += 3, dst += 3)
         {
             // Convert (B, G, R) to (R, G, B)
-            tmp = data[j];
-            data[j] = data[j + 2];
-            data[j + 2] = tmp;
-
-            // cout << "R: " << (int)data[j] << " G: " << (int)data[j + 1] << " B: " << (int)data[j + 2] << endl;
+            dst[0] = linedata[j + 2];
+            dst[1] = linedata[j + 1];
+            dst[2] = linedata[j];
         }
     }
 
-    fclose(f);
+    delete[] linedata;
+
+    is.close();
 
     // return width, height and data
     *height1 = height;
     *width1 = width;
-    return data;
+    return res;
 }
