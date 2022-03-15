@@ -16,22 +16,29 @@ class DMDFrame {
 
 private:
 
-	uint16_t columns;
-	uint16_t rows;
-	uint16_t bitsperpixel;
+	int columns;
+	int rows;
+	int bitsperpixel;
 	uint8_t* data;
 
 public:
 
-	DMDFrame(uint16_t columns1 = 0, uint16_t rows1 = 0, uint16_t bitsperpixel1 = 0, char* data1 = NULL);
+	DMDFrame(int columns1 = 0, int rows1 = 0, int bitsperpixel1 = 0, uint8_t* data1 = NULL);
 	~DMDFrame();
 
-	PIXVAL getPixel(uint16_t x, uint16_t y);
+	PIXVAL getPixel(int x, int y);
 
 	bool read_from_stream(std::ifstream& fis);
 
 	bool same_size(DMDFrame f2);
 	bool equals_fast(DMDFrame f2);
+
+	int get_width();
+	int get_height();
+	int get_bitsperpixel();
+	uint8_t get_pixelmask();
+
+	uint8_t* get_data();
 
 	string str();
 
@@ -40,11 +47,11 @@ private:
 
 	void recalc_checksum();
 
-	void init_mem(char* data1 = NULL);
+	void init_mem(uint8_t* data1 = NULL);
 
 	// cache some stuff
 	uint16_t datalen;
 	uint16_t rowlen;
-	uint16_t bitmask;
+	uint16_t pixel_mask;
 	uint32_t checksum; // uses for fast equality check
 };

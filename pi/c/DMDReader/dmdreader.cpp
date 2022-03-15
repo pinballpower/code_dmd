@@ -4,6 +4,8 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <chrono>
+#include <thread>
 
 #include "dmdframe.h"
 #include "dmddata.h"
@@ -27,11 +29,17 @@ int readfile(string name) {
 
 	bool ok = true;
 
+	RaylibRenderer rr = RaylibRenderer();
+	
+
 	while (ok) {
 		ok = frame.read_from_stream(df);
 		if (ok) {
 			cout << frame.str() << "\n";
 		};
+
+		rr.showImage(&frame);
+		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 	}
 
 	return 0;

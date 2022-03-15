@@ -1,26 +1,48 @@
-﻿# CMakeList.txt: CMake-Projekt für "DMDReader". Schließen Sie die Quelle ein, und definieren Sie
-# projektspezifische Logik hier.
-#
-cmake_minimum_required (VERSION 3.11)
-
-
+﻿cmake_minimum_required (VERSION 3.11)
 
 ###
 ### BEGIN Raylib
 ###
-#include(FetchContent)
-#set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE) # don't build the supplied examples
-#set(BUILD_GAMES OFF CACHE BOOL "" FORCE) # don't build the supplied example games
-#fetchcontent_declare(raylib GIT_REPOSITORY https://github.com/raysan5/raylib.git GIT_TAG 4.0.0 GIT_PROGRESS TRUE)
-#fetchcontent_makeavailable(raylib)
+
+find_package(raylib 4.0.0 QUIET) # Requires at least version 3.0
+
+if (NOT raylib_FOUND) # If there's none, fetch and build raylib
+  include(FetchContent)
+
+  FetchContent_Declare(
+    raylib
+    URL https://github.com/raysan5/raylib/archive/refs/tags/4.0.0.tar.gz
+  )
+
+  FetchContent_GetProperties(raylib)
+  if (NOT raylib_POPULATED) # Have we downloaded raylib yet?
+    set(FETCHCONTENT_QUIET NO)
+    FetchContent_Populate(raylib)
+
+    set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE) # don't build the supplied examples
+
+    # build raylib
+    add_subdirectory(${raylib_SOURCE_DIR} ${raylib_BINARY_DIR})
+
+    include_directories(${raylib_SOURCE_DIR}/src)
+
+  endif()
+
+endif()
+
+set(CMAKE_C_STANDARD 11)
+
+
+
 ###
 ### END Raylib
 ###
-
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project ("DMDReader")
 
-add_executable (DMDReader "dmdreader.cpp" "dmdreader.h" "util/crc32.cpp" "util/crc32.h" "render/framerenderer.h" "render/raylibrenderer.h" "render/raylibrenderer.cpp"  "dmdframe.cpp" "dmdframe.h")
+add_executable (DMDReader "dmdreader.cpp" "dmdreader.h" "util/crc32.cpp" "util/crc32.h" "render/framerenderer.h" "render/raylibrenderer.h" "render/raylibrenderer.cpp"  "dmdframe.cpp" "dmdframe.h" "render/framerenderer.cpp")
+
+target_link_libraries(${PROJECT_NAME} raylib)

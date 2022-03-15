@@ -9,14 +9,14 @@
 
 #include "dmdframe.h"
 
-DMDFrame::DMDFrame(uint16_t columns1, uint16_t rows1, uint16_t bitsperpixel1, char* data1)
+DMDFrame::DMDFrame(int columns1, int rows1, int bitsperpixel1, uint8_t* data1)
 	{
 		columns = columns1;
 		rows = rows1;
 		bitsperpixel = bitsperpixel1;
 		data = NULL;
 		checksum = 0;
-		bitmask = 0;
+		pixel_mask = 0;
 
 		this->init_mem(data1);
 	}
@@ -29,10 +29,10 @@ DMDFrame::~DMDFrame() {
 		}
 	}
 
-PIXVAL DMDFrame::getPixel(uint16_t x, uint16_t y) {
-		uint16_t offset = y * rowlen + x / bitsperpixel;
-		uint16_t pixoffset = 8 - (x % bitsperpixel);
-		return (data[offset] >> pixoffset) & bitmask;
+PIXVAL DMDFrame::getPixel(int x, int y) {
+		int offset = y * rowlen + x / bitsperpixel;
+		int pixoffset = 8 - (x % bitsperpixel);
+		return (data[offset] >> pixoffset) & pixel_mask;
 	}
 
 bool DMDFrame::read_from_stream(std::ifstream& fis)
@@ -87,10 +87,10 @@ bool DMDFrame::read_from_stream(std::ifstream& fis)
 		};
 	}
 
-	void DMDFrame::init_mem(char* data1) {
+	void DMDFrame::init_mem(uint8_t* data1) {
 		rowlen = columns * bitsperpixel / 8;
 		datalen = rowlen * rows;
-		bitmask = 0xff << (8 - bitsperpixel);
+		pixel_mask = 0xff >> (8 - bitsperpixel);
 
 		if (datalen) {
 
@@ -115,3 +115,23 @@ bool DMDFrame::read_from_stream(std::ifstream& fis)
 		}
 	}
 
+
+	int DMDFrame::get_width() {
+		return columns;
+	}
+
+	int DMDFrame::get_height() {
+		return rows;
+	}
+
+	uint8_t* DMDFrame::get_data() {
+		return data;
+	}
+
+	uint8_t DMDFrame::get_pixelmask() {
+		return pixel_mask;
+	}
+
+	int DMDFrame::get_bitsperpixel() {
+		return bitsperpixel;
+	}

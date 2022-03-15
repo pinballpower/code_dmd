@@ -5,5 +5,5 @@
 class FrameRenderer
 {
 public:
-	virtual void showImage(DMDFrame* f);
+	void showImage(DMDFrame* f);
 };
