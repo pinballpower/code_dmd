@@ -12,3 +12,4 @@ pico/dmdreader/CMakeFiles
 *.pyc
 **/out/**
 .vs
+.pydevproject
