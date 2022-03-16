@@ -4,6 +4,7 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <assert.h>
 
 #include "../util/crc32.h"
 #include "../util/bmp.h"
@@ -119,7 +120,11 @@ void DMDFrame::init_mem(uint8_t* data1) {
 	}
 }
 
-inline uint8_t DMDFrame::next_pixel(uint8_t **buf, int *pixel_bit) {
+/*
+ * Internal helper funtions
+ * Calculate the next pixel in a bytearray where each pixel uses bitperpixel bits
+ */
+uint8_t DMDFrame::get_next_pixel(uint8_t **buf, int *pixel_bit) {
 	*pixel_bit -= bitsperpixel;
 	if (*pixel_bit < 0) {
 		*pixel_bit += 8;
@@ -128,6 +133,17 @@ inline uint8_t DMDFrame::next_pixel(uint8_t **buf, int *pixel_bit) {
 
 	return ((**buf >> *pixel_bit) & pixel_mask);
 }
+
+
+void DMDFrame::calc_next_pixel(uint8_t** buf, int* pixel_bit, bool clear) {
+	*pixel_bit -= bitsperpixel;
+	if (*pixel_bit < 0) {
+		*pixel_bit += 8;
+		(*buf)++;
+		if (clear) **buf = 0;
+	}
+}
+
 
 
 DMDFrame* DMDFrame::to_gray8() {
@@ -140,7 +156,7 @@ DMDFrame* DMDFrame::to_gray8() {
 	int shift = 8 - bitsperpixel;
 
 	for (int pixel = 0; pixel < rows*columns; pixel++) {
-		uint8_t pv = next_pixel(&src, &pixel_bit);
+		uint8_t pv = get_next_pixel(&src, &pixel_bit);
 
 		// copy pixel
 		*dst = pv << shift;
@@ -165,7 +181,7 @@ DMDFrame* DMDFrame::to_gray1(int threshold) {
 	int shift = 8 - bitsperpixel;
 
 	for (int pixel = 0; pixel < rows * columns; pixel++) {
-		uint8_t pv = next_pixel(&src, &src_bit);
+		uint8_t pv = get_next_pixel(&src, &src_bit);
 
 
 		dst_bit -= 1;
@@ -185,8 +201,6 @@ DMDFrame* DMDFrame::to_gray1(int threshold) {
 
 	return res;
 }
-
-
 
 
 int DMDFrame::get_width() {
@@ -245,11 +259,15 @@ bool MaskedDMDFrame::matches(DMDFrame* frame) {
 	return true;
 }
 
-int MaskedDMDFrame::read_from_bmp(string filename, int grayoffset, int maskoffset) {
+int MaskedDMDFrame::read_from_bmp(string filename, DMDPalette palette, int bitsperpixel) {
+
+	assert((bitsperpixel > 0) && (bitsperpixel <= 8));
 
 	int width = 0;
 	int height = 0;
-	uint8_t* bmp_data = read_BMP(filename, &width, &height);
+	int max_index = (1 << bitsperpixel)-1;
+	uint8_t allset = (uint8_t)max_index;
+	rgb_t* bmp_data = read_BMP(filename, &width, &height);
 
 	if ((width <= 0) || (height <= 0)) {
 		return -1;
@@ -258,7 +276,7 @@ int MaskedDMDFrame::read_from_bmp(string filename, int grayoffset, int maskoffse
 	// Initialize memory
 	DMDFrame::columns = width;
 	DMDFrame::rows = height;
-	DMDFrame::bitsperpixel = 8;
+	DMDFrame::bitsperpixel = bitsperpixel;
 	init_mem();
 	if (mask) {
 		delete[] mask;
@@ -273,12 +291,26 @@ int MaskedDMDFrame::read_from_bmp(string filename, int grayoffset, int maskoffse
 	mask_y1 = rows + 1;
 	mask_y2 = -1;
 
-	uint8_t* src = bmp_data;
+	uint8_t* src = (uint8_t*)bmp_data;
 	uint8_t* dst = DMDFrame::data;
+	int dst_bit = 8;
+
+	bool color_not_found = false;
 
 	for (int y = 0; y < height; y++) {
-		for (int x = 0; x < width; x++) {
-			if (src[maskoffset]) {
+		for (int x = 0; x < width; x++, src+=3) {
+
+			int color_index = palette.find(src[0], src[1], src[2]);
+
+			if (color_index < 0) {
+				color_not_found = true;
+				color_index = 0;
+			}
+			else if (color_index > max_index) 
+			{
+				// in this case, this is a mask color
+				color_index = 0;
+
 				if (x < mask_x1) {
 					mask_x1 = x;
 				}
@@ -291,33 +323,46 @@ int MaskedDMDFrame::read_from_bmp(string filename, int grayoffset, int maskoffse
 				if (y > mask_y2) {
 					mask_y2 = y;
 				}
+		
+			}
+			else 
+			{
+
 			}
 
-			*dst = src[grayoffset];
-	
-			src += 3;
-			dst++;
+			// go to next pixel and set it to zero 
+			calc_next_pixel(&dst, &dst_bit, true);
 
+			// set the bits for this pixel
+			*dst = *dst | (color_index << dst_bit);
+	
 		}
 	}
 
 	// Masking
-	dst = data;
-	uint8_t* msk = mask;
+	dst = mask;
+	src = data;
+	int src_bit = 8;
+	dst_bit = 8;
+
 	if ((mask_x1 <= mask_x2) && (mask_y1 <= mask_y2)) {
 		// mask rectangle found
 		for (int y = 0; y < height; y++) {
 			for (int x = 0; x < width; x++) {
+				
+				// next pixel
+				DMDFrame::get_next_pixel(&src, &src_bit);
+				DMDFrame::calc_next_pixel(&dst, &dst_bit, true);
+
 				if ((x <= mask_x1) || (x >= mask_x2) || (y <= mask_y1) || (y >= mask_y2)) {
-					*dst = 0;
-					*msk = 0;
+					// masked
+					*src &= (~(allset << src_bit)); // clear  pixels
+					// mask won't be set as it is already 0
 				}
 				else {
-					*msk = 0xff;
+					// unmasked
+					*dst |= (allset << src_bit); // set mask to 1
 				}
-				// next pixel
-				dst++;
-				msk++;
 			}
 		}
 	}

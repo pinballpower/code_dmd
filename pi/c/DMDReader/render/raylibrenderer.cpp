@@ -2,6 +2,7 @@
 #include <assert.h> 
 #include <chrono>
 #include <thread>
+#include <assert.h>
 
 #include <raylib.h>
 
@@ -9,13 +10,16 @@
 #include "raylibrenderer.h"
 
 
-RaylibRenderer::RaylibRenderer(int width1, int height1, int px_radius1, int px_spacing1, int bits_per_pixel) {
+RaylibRenderer::RaylibRenderer(int width1, int height1, int px_radius1, int px_spacing1, int bitsperpixel) {
+
+    assert((bitsperpixel > 0) && (bitsperpixel <= 8));
+
 	width = width1;
 	height = height1;
 	px_radius = px_radius1;
     px_spacing = px_spacing1;
 
-    palette_size = 1 << bits_per_pixel;
+    palette_size = 1 << bitsperpixel;
     palette = new Color[palette_size];
     if (palette) {
         for (int i = 0; i < palette_size; i++) {

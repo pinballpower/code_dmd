@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../dmd/dmdframe.h"
+#include "../dmd/color.h"
 
 class FrameRenderer
 {

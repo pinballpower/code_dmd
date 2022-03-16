@@ -1,4 +1,5 @@
 #pragma once
+#include "../dmd/color.h"
 
 #include "raylib.h"
 #include "framerenderer.h"
@@ -7,9 +8,10 @@ class RaylibRenderer: FrameRenderer
 {
 public:
 
-	RaylibRenderer(int width1 = 128 * 11, int height1 = 32 * 11, int px_radius1 = 5, int px_spacing1 = 1, int bits_per_pixel=8);
+	RaylibRenderer(int width1 = 128 * 11, int height1 = 32 * 11, int px_radius1 = 5, int px_spacing1 = 1, int bitsperpixel = 4);
 	~RaylibRenderer();
 	int showImage(DMDFrame* f);
+	void set_palette(DMDPalette*);
 
 private:
 

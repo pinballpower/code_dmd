@@ -7,6 +7,7 @@
 #include <string>
 
 #include "../util/crc32.h"
+#include "color.h"
 
 #define  PIXVAL uint8_t  // we don't deal with more than 8 bits/pixel
 
@@ -47,13 +48,13 @@ public:
 	 */
 	DMDFrame* to_gray8();
 	DMDFrame* to_gray1(int threshold = 1);
-	
+
 
 protected:
 
 	void recalc_checksum();
 
-	void init_mem(uint8_t *data1 = NULL);
+	void init_mem(uint8_t* data1 = NULL);
 
 	// cache some stuff
 	int datalen;
@@ -61,7 +62,8 @@ protected:
 	uint8_t pixel_mask;
 	uint32_t checksum; // uses for fast equality check
 
-	uint8_t next_pixel(uint8_t **buf, int *bit_index);
+	uint8_t get_next_pixel(uint8_t** buf, int* pixel_bit);
+	void calc_next_pixel(uint8_t** buf, int* pixel_bit, bool clear = false);
 };
 
 class MaskedDMDFrame : DMDFrame {
@@ -79,10 +81,11 @@ public:
 	 * grayindex: offset of the color to use as the gray channel
 	 * R=0, G=1, B=2
 	 */
-	int read_from_bmp(string filename, int grayoffset = 0, int maskoffset = 2);
+	int read_from_bmp(string filename, DMDPalette palette, int bit_per_pixel=4);
 
 private:
 
 	uint8_t* mask;
 
 };
+
