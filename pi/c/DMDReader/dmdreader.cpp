@@ -57,7 +57,7 @@ int main()
 	string datadir = "../../../../../samples/";
 
 	// Pubcapture test
-	PubCapture* pubcapture = new PubCapture(4, datadir + "gbpub");
+	PubCapture pubcapture = PubCapture(4, datadir + "gbpub");
 
 
 	// find the correct palette for a file
@@ -85,6 +85,7 @@ int main()
 
 		rr.showImage(f);
 		cout << i << "\n";
+		pubcapture.process(f);
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		//if (mframe.matches(f)) {
 		//	cout << f->str() << "\n";

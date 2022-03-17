@@ -50,8 +50,9 @@ public:
 	int find(uint32_t color, bool ignore_alpha=true);
 	int find(uint8_t r, uint8_t g, uint8_t b);
 
+	bool matches(RGBBuffer* buf);
+
 };
 
-bool palette_matches(DMDPalette* palette, RGBBuffer* buf);
 DMDPalette* find_matching_palette(vector<DMDPalette*> palettes, RGBBuffer* buf);
 vector<DMDPalette*> default_palettes();

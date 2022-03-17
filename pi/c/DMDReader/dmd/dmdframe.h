@@ -82,7 +82,7 @@ public:
 	 * grayindex: offset of the color to use as the gray channel
 	 * R=0, G=1, B=2
 	 */
-	int read_from_rgbimage(RGBBuffer* rgbdata, DMDPalette* palette, int bit_per_pixel = 4);
+	int read_from_rgbimage(RGBBuffer* rgbdata, DMDPalette* palette, int bitperpixel = 4);
 
 private:
 

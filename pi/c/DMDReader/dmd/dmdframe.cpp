@@ -259,7 +259,7 @@ bool MaskedDMDFrame::matches(DMDFrame* frame) {
 	return true;
 }
 
-int MaskedDMDFrame::read_from_rgbimage(RGBBuffer* rgbdata, DMDPalette* palette, int bit_per_pixel) {
+int MaskedDMDFrame::read_from_rgbimage(RGBBuffer* rgbdata, DMDPalette* palette, int bitsperpixel) {
 
 	assert((bitsperpixel > 0) && (bitsperpixel <= 8));
 

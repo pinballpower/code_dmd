@@ -87,17 +87,13 @@ int DMDPalette::find(uint8_t r, uint8_t g, uint8_t b) {
 	return -1;
 }
 
-
-
-
-bool palette_matches(DMDPalette* palette, RGBBuffer* buf)
-{
+bool DMDPalette::matches(RGBBuffer* buf) {
 	for (int i = 0; i < buf->len; i++) {
 		rgb_t v = buf->data[i];
 		bool color_found = false;
 
-		for (int ci = 0; ci < palette->size; ci++) {
-			if (palette->colors[ci].matches(v.r, v.g, v.b)) {
+		for (int ci = 0; ci < size; ci++) {
+			if (colors[ci].matches(v.r, v.g, v.b)) {
 				color_found = true;
 				break;
 			}
@@ -111,10 +107,11 @@ bool palette_matches(DMDPalette* palette, RGBBuffer* buf)
 }
 
 
+
 DMDPalette* find_matching_palette(vector<DMDPalette*> palettes, RGBBuffer* buf)
 {
 	for (const auto& palette : palettes) {
-		if (palette_matches(palette, buf)) {
+		if (palette->matches(buf)) {
 			return palette;
 		}
 	}

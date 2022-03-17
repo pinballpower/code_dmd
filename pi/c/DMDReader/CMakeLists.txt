@@ -32,10 +32,18 @@ endif()
 
 set(CMAKE_C_STANDARD 11)
 
-
-
 ###
 ### END Raylib
+###
+
+###
+### BEGIN boost
+###
+
+# we might use this later
+
+###
+### END boost
 ###
 
 set(CMAKE_CXX_STANDARD 20)
