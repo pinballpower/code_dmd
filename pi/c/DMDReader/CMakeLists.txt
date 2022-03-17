@@ -4,7 +4,7 @@
 ### BEGIN Raylib
 ###
 
-find_package(raylib 4.0.0 QUIET) # Requires at least version 3.0
+find_package(raylib 4.0.0 QUIET) # Requires at least version 4.0
 
 if (NOT raylib_FOUND) # If there's none, fetch and build raylib
   include(FetchContent)
@@ -37,13 +37,36 @@ set(CMAKE_C_STANDARD 11)
 ###
 
 ###
-### BEGIN boost
+### BEGIN JsonCPP
 ###
 
-# we might use this later
+find_package(jsoncpp)
+
+if (NOT jsoncpp_FOUND) # If there's none, fetch and build raylib
+  include(FetchContent)
+
+  FetchContent_Declare(
+    jsoncpp
+    URL https://github.com/open-source-parsers/jsoncpp/archive/refs/tags/1.9.5.tar.gz
+  )
+
+  FetchContent_GetProperties(jsoncpp)
+  if (NOT jsoncpp_POPULATED) # Have we downloaded jsoncpp yet?
+    set(FETCHCONTENT_QUIET NO)
+    FetchContent_Populate(jsoncpp)
+
+    # build raylib
+    add_subdirectory(${jsoncpp_SOURCE_DIR} ${jsoncpp_BINARY_DIR})
+
+    include_directories(${jsoncpp_SOURCE_DIR}/src)
+
+  endif()
+
+endif()
+
 
 ###
-### END boost
+### END JSonCPP
 ###
 
 set(CMAKE_CXX_STANDARD 20)
@@ -51,6 +74,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project ("DMDReader")
 
-add_executable (DMDReader "dmdreader.cpp" "dmdreader.h" "util/crc32.cpp" "util/crc32.h" "render/framerenderer.h" "render/raylibrenderer.h" "render/raylibrenderer.cpp"  "dmd/dmdframe.cpp" "dmd/dmdframe.h" "render/framerenderer.cpp" "util/bmp.h" "util/bmp.cpp" "util/numutils.cpp" "util/numutils.h" "dmd/color.h" "dmd/color.cpp" "util/endian.h" "dmd/pubcapture.cpp" "dmd/frameprocessor.h" "dmd/frameprocessor.cpp" "util/image.h" "util/image.cpp")
+add_executable (DMDReader "dmdreader.cpp" "dmdreader.h" "util/crc32.cpp" "util/crc32.h" "render/framerenderer.h" "render/raylibrenderer.h" "render/raylibrenderer.cpp"  "dmd/dmdframe.cpp" "dmd/dmdframe.h" "render/framerenderer.cpp" "util/bmp.h" "util/bmp.cpp" "util/numutils.cpp" "util/numutils.h" "dmd/color.h" "dmd/color.cpp" "util/endian.h" "dmd/pubcapture.cpp" "dmd/frameprocessor.h" "dmd/frameprocessor.cpp" "util/image.h" "util/image.cpp" "dmd/dmdsource.h" "dmd/dmdsource.cpp" "util/objectfactory.h")
 
 target_link_libraries(${PROJECT_NAME} raylib)
