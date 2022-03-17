@@ -7,6 +7,7 @@
 #include <string>
 
 #include "../util/crc32.h"
+#include "../util/image.h"
 #include "color.h"
 
 #define  PIXVAL uint8_t  // we don't deal with more than 8 bits/pixel
@@ -81,7 +82,7 @@ public:
 	 * grayindex: offset of the color to use as the gray channel
 	 * R=0, G=1, B=2
 	 */
-	int read_from_bmp(string filename, DMDPalette palette, int bit_per_pixel=4);
+	int read_from_rgbimage(RGBBuffer* rgbdata, DMDPalette* palette, int bit_per_pixel = 4);
 
 private:
 

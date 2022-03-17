@@ -1,5 +1,5 @@
 #pragma once
 
-#include "../dmd/color.h"
+#include "image.h"
 
-rgb_t* read_BMP(std::string filename, int* width1, int* height1);
+RGBBuffer* read_BMP(std::string filename);

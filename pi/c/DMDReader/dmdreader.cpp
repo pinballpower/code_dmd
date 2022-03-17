@@ -13,6 +13,7 @@
 #include "dmd/dmdframe.h"
 #include "dmd/dmddata.h"
 #include "dmd/color.h"
+#include "dmd/pubcapture.h"
 #include "util/crc32.h"
 #include "util/bmp.h"
 #include "render/framerenderer.h"
@@ -55,20 +56,13 @@ int main()
 {
 	string datadir = "../../../../../samples/";
 
+	// Pubcapture test
+	PubCapture* pubcapture = new PubCapture(4, datadir + "gbpub");
+
+
 	// find the correct palette for a file
 	vector<DMDPalette*> palettes = default_palettes();
 
-	int w, h;
-	for (int i = 1; i <= 90; i++) {
-		rgb_t* pixdata = read_BMP(datadir + "afmpub/"+to_string(i) + ".bmp", &w, &h);
-		DMDPalette* p = find_matching_palette(palettes, pixdata, w * h);
-		if (p == NULL) {
-			cout << "Couldn't find matching palette for " << i;
-		}
-		else {
-			cout << "Palette for " << i << "is "<<p->name<<"\n";
-		}
-	}
 
 	RaylibRenderer rr = RaylibRenderer(128 * 11,32 * 11,5,1,8);
 
@@ -78,10 +72,9 @@ int main()
 	
 	DMDFrame frame = DMDFrame();
 
-	DMDPalette* palette = new DMDPalette(pd_4_orange_mask, 17, "pd_4_orange_mask");
-	MaskedDMDFrame mframe = MaskedDMDFrame();
-	mframe.read_from_bmp(datadir+"gbpub/54.bmp", *palette);
-	rr.showImage((DMDFrame*) &mframe);
+	//MaskedDMDFrame mframe = MaskedDMDFrame();
+	//mframe.read_from_bmp(datadir+"gbpub/54.bmp", *palette);
+	//rr.showImage((DMDFrame*) &mframe);
 
 	int i = 0;
 	for (auto& f : frames) {
@@ -93,9 +86,9 @@ int main()
 		rr.showImage(f);
 		cout << i << "\n";
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
-		if (mframe.matches(f)) {
-			cout << f->str() << "\n";
-		}
+		//if (mframe.matches(f)) {
+		//	cout << f->str() << "\n";
+		//}
 		//	rr.showImage((DMDFrame*)&mframe);
 		//}
 	}

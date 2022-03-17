@@ -259,29 +259,22 @@ bool MaskedDMDFrame::matches(DMDFrame* frame) {
 	return true;
 }
 
-int MaskedDMDFrame::read_from_bmp(string filename, DMDPalette palette, int bitsperpixel) {
+int MaskedDMDFrame::read_from_rgbimage(RGBBuffer* rgbdata, DMDPalette* palette, int bit_per_pixel) {
 
 	assert((bitsperpixel > 0) && (bitsperpixel <= 8));
 
-	int width = 0;
-	int height = 0;
 	int max_index = (1 << bitsperpixel)-1;
 	uint8_t allset = (uint8_t)max_index;
-	rgb_t* bmp_data = read_BMP(filename, &width, &height);
-
-	if ((width <= 0) || (height <= 0)) {
-		return -1;
-	}
 
 	// Initialize memory
-	DMDFrame::columns = width;
-	DMDFrame::rows = height;
+	DMDFrame::columns = rgbdata->width;
+	DMDFrame::rows = rgbdata->height;
 	DMDFrame::bitsperpixel = bitsperpixel;
 	init_mem();
 	if (mask) {
 		delete[] mask;
 	};
-	mask = new uint8_t[width * height];
+	mask = new uint8_t[rgbdata->width * rgbdata->height];
 
 
 	// Mask calculations
@@ -291,16 +284,16 @@ int MaskedDMDFrame::read_from_bmp(string filename, DMDPalette palette, int bitsp
 	mask_y1 = rows + 1;
 	mask_y2 = -1;
 
-	uint8_t* src = (uint8_t*)bmp_data;
+	uint8_t* src = (uint8_t*)rgbdata->data;
 	uint8_t* dst = DMDFrame::data;
 	int dst_bit = 8;
 
 	bool color_not_found = false;
 
-	for (int y = 0; y < height; y++) {
-		for (int x = 0; x < width; x++, src+=3) {
+	for (int y = 0; y < rgbdata->height; y++) {
+		for (int x = 0; x < rgbdata->width; x++, src+=3) {
 
-			int color_index = palette.find(src[0], src[1], src[2]);
+			int color_index = palette->find(src[0], src[1], src[2]);
 
 			if (color_index < 0) {
 				color_not_found = true;
@@ -347,8 +340,8 @@ int MaskedDMDFrame::read_from_bmp(string filename, DMDPalette palette, int bitsp
 
 	if ((mask_x1 <= mask_x2) && (mask_y1 <= mask_y2)) {
 		// mask rectangle found
-		for (int y = 0; y < height; y++) {
-			for (int x = 0; x < width; x++) {
+		for (int y = 0; y < rgbdata->height; y++) {
+			for (int x = 0; x < rgbdata->width; x++) {
 				
 				// next pixel
 				DMDFrame::get_next_pixel(&src, &src_bit);
@@ -368,8 +361,6 @@ int MaskedDMDFrame::read_from_bmp(string filename, DMDPalette palette, int bitsp
 	}
 
 	DMDFrame::recalc_checksum();
-
-	delete[] bmp_data;
 
 	return 0;
 }

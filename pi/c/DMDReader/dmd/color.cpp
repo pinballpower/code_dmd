@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <iostream>
 #include <vector>
+#include <assert.h>
 
 #include "color.h"
 
@@ -42,23 +43,27 @@ bool DMDColor::matches(DMDColor color, bool ignore_alpha) {
 	return false;
 }
 
-DMDPalette::DMDPalette(int size1, string name1) {
-	size = size1;
-	colors = new DMDColor[size1];
-	name = name1;
+DMDPalette::DMDPalette(int size, int bitsperpixel, string name) {
+	assert(size >= (1 << bitsperpixel));
+
+	this->size = size;
+	this->bitsperpixel = bitsperpixel;
+	colors = new DMDColor[size];
+	this->name = name;
 }
 
-DMDPalette::DMDPalette(uint32_t* colors1, int size1, string name1)
+DMDPalette::DMDPalette(uint32_t* colors, int size, int bitsperpixel, string name1)
 {
-	size = size1;
-	colors = new DMDColor[size];
+	assert(size >= (1 << bitsperpixel));
+
+	this->size = size;
+	this->colors = new DMDColor[size];
 	for (int i = 0; i < size; i++) {
-		colors[i].c.value = colors1[i];
+		this->colors[i].c.value = colors[i];
 	}
 
-	name = name1;
+	this->name = name;
 }
-
 
 DMDPalette::~DMDPalette() {
 	delete colors;
@@ -83,33 +88,35 @@ int DMDPalette::find(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 
-DMDPalette* find_matching_palette(vector<DMDPalette*> palettes, rgb *buf, int buflen) {
 
-	for (auto palette = std::begin(palettes); palette != std::end(palettes); ++palette) {
 
-		bool palette_ok = true;
+bool palette_matches(DMDPalette* palette, RGBBuffer* buf)
+{
+	for (int i = 0; i < buf->len; i++) {
+		rgb_t v = buf->data[i];
+		bool color_found = false;
 
-		for (int i = 0; i < buflen; i++) {
-			rgb_t v = buf[i];
-			bool color_found = false;
-
-			for (int ci = 0; ci < (*palette)->size; ci++) {
-				if ((*palette)->colors[ci].matches(v.r, v.g, v.b)) {
-					color_found = true;
-					break;
-				}
-			}
-
-			if (!(color_found)) {
-				cout << "Can't find color " << v.r + 0 << "," << v.g + 0 << "," << v.b + 0 << " in palette " << (*palette)->name << "\n";
-				palette_ok=false;
+		for (int ci = 0; ci < palette->size; ci++) {
+			if (palette->colors[ci].matches(v.r, v.g, v.b)) {
+				color_found = true;
 				break;
 			}
 		}
 
-		if (palette_ok) {
-			return (*palette);
-		};
+		if (!(color_found)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+
+DMDPalette* find_matching_palette(vector<DMDPalette*> palettes, RGBBuffer* buf)
+{
+	for (const auto& palette : palettes) {
+		if (palette_matches(palette, buf)) {
+			return palette;
+		}
 	}
 
 	return NULL;
@@ -118,8 +125,15 @@ DMDPalette* find_matching_palette(vector<DMDPalette*> palettes, rgb *buf, int bu
 vector<DMDPalette*> default_palettes() {
 	vector<DMDPalette*> res = vector<DMDPalette*>();
 
-	DMDPalette *p1 = new DMDPalette(pd_2_orange_mask, 17, "pd_2_orange_mask");
-	res.push_back(p1);
+	uint32_t pd_4_orange_mask_data[] = {
+		0x00000000, 0x11050000, 0x22090000, 0x330e0000,
+		0x44120000, 0x55170000, 0x661C0000, 0x77200000,
+		0x88000000, 0x99000000, 0xaa000000, 0xbb000000,
+		0xcc370000, 0xdd3c0000, 0xee400000, 0xff450000,
+		0xfd00fd00 };
+	DMDPalette* pd_4_orange_mask = new DMDPalette(pd_4_orange_mask_data, 17, 4, "pd_4_orange_mask");
+
+	res.push_back(pd_4_orange_mask);
 
 	return res;
 }
