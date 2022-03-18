@@ -13,3 +13,5 @@ pico/dmdreader/CMakeFiles
 **/out/**
 .vs
 .pydevproject
+/pi/samples/afmpub
+/pi/samples/gbpub
