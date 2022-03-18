@@ -27,3 +27,15 @@ DMDFrameProcessor* createProcessor(string name) {
 	}
 
 }
+
+
+FrameRenderer* createRenderer(string name) {
+	if (name == "raylib") {
+		return (FrameRenderer*)(new RaylibRenderer());
+	}
+	else {
+		BOOST_LOG_TRIVIAL(error) << "renderer name " << name << "unknown";
+		return NULL;
+	}
+
+}

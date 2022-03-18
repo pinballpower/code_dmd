@@ -23,7 +23,7 @@ public:
 	virtual bool frame_ready();
 	virtual bool configure_from_ptree(boost::property_tree::ptree pt_general, boost::property_tree::ptree pt_source);
 
-	virtual SourceProperties get_properties(SourceProperties p);
+	virtual void get_properties(SourceProperties* p);
 };
 
 class DATDMDSource : DMDSource {
@@ -43,7 +43,7 @@ public:
 
 	virtual bool configure_from_ptree(boost::property_tree::ptree pt_general, boost::property_tree::ptree pt_source);
 
-	virtual SourceProperties get_properties(SourceProperties p);
+	virtual void get_properties(SourceProperties* p);
 
 private:
 

@@ -33,9 +33,9 @@ bool DATDMDSource::read_file(string filename)
 			rc = frame->read_from_stream(df);
 			if (rc == 0) {
 				frames.push(frame);
+				framecount++;
 			}
-		}
-		framecount++;
+		}		
 	}
 	catch (int e) {
 		BOOST_LOG_TRIVIAL(error) << "I/O error reading " << filename << ": " << e;
@@ -83,22 +83,20 @@ bool DMDSource::configure_from_ptree(boost::property_tree::ptree pt_general, boo
 	return false;
 }
 
-SourceProperties DMDSource::get_properties(SourceProperties p) {
-	p.width = p.height = p.bitsperpixel = 0;
-	return p;
+void DMDSource::get_properties(SourceProperties* p) {
+	p->width = p->height = p->bitsperpixel = 0;
 }
 
-SourceProperties DATDMDSource::get_properties(SourceProperties p) {
+void DATDMDSource::get_properties(SourceProperties* p) {
 	DMDFrame* frame = frames.front();
 	if (frame) {
-		p.width= frame->get_width();
-		p.height = frame->get_height();
-		p.width = frame->get_bitsperpixel();
+		p->width= frame->get_width();
+		p->height = frame->get_height();
+		p->bitsperpixel = frame->get_bitsperpixel();
 	} else {
-		p.width = p.height=p.bitsperpixel =0;
+		p->width = p->height=p->bitsperpixel = 0;
 	}
 
-	return p;
 }
 
 bool DATDMDSource::configure_from_ptree(boost::property_tree::ptree pt_general, boost::property_tree::ptree pt_source) {

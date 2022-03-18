@@ -9,15 +9,18 @@
 #include "framerenderer.h"
 #include "raylibrenderer.h"
 
+RaylibRenderer::RaylibRenderer() {
+    width = height = px_radius = px_spacing = 0;
+}
 
-RaylibRenderer::RaylibRenderer(int width1, int height1, int px_radius1, int px_spacing1, int bitsperpixel) {
+void RaylibRenderer::set_display_parameters(int width, int height, int px_radius, int px_spacing, int bitsperpixel) {
 
     assert((bitsperpixel > 0) && (bitsperpixel <= 8));
 
-	width = width1;
-	height = height1;
-	px_radius = px_radius1;
-    px_spacing = px_spacing1;
+	this->width = width;
+	this->height = height;
+	this->px_radius = px_radius;
+    this->px_spacing = px_spacing;
 
     palette_size = 1 << bitsperpixel;
     palette = new Color[palette_size];
@@ -26,8 +29,6 @@ RaylibRenderer::RaylibRenderer(int width1, int height1, int px_radius1, int px_s
             palette[i]=Fade(RED, i*((float)1/(palette_size-1)));
         }
     }
-
-	InitWindow(width, height, "DMD display");
 }
 
 RaylibRenderer::~RaylibRenderer() {
@@ -38,10 +39,11 @@ RaylibRenderer::~RaylibRenderer() {
 }
 
 
-int RaylibRenderer::showImage(DMDFrame* f) {
+void RaylibRenderer::render_frame(DMDFrame* f) {
 
     if (!(palette)) {
-        return -1;
+        BOOST_LOG_TRIVIAL(error) << "can't render frame, no palette found";
+        return;
     }
 
     BeginDrawing();
@@ -83,6 +85,36 @@ int RaylibRenderer::showImage(DMDFrame* f) {
     }
 
     EndDrawing();
-
-    return 0;
 };
+
+void RaylibRenderer::start_display() {
+    InitWindow(width, height, "DMD display");
+}
+
+
+bool RaylibRenderer::configure_from_ptree(boost::property_tree::ptree pt_general, boost::property_tree::ptree pt_renderer) {
+
+    int bitsperpixel = pt_general.get("bitsperpixel", 0);
+    if (!bitsperpixel) {
+        BOOST_LOG_TRIVIAL(error) << "couldn't detect bits/pixel";
+        return false;
+    }
+
+    int rows = pt_general.get("rows", 0);
+    int columns = pt_general.get("columns", 0);
+    if ((rows <= 0) || (columns <= 0)) {
+        BOOST_LOG_TRIVIAL(error) << "rows or columns not detected correctly";
+        return false;
+    }
+
+    int width = pt_renderer.get("width", 1280);
+    int height = pt_renderer.get("height", 320);
+    int px_spacing = pt_renderer.get("spacing", 2);
+    int radius = ((width / columns) - px_spacing) / 2;
+
+    set_display_parameters(width, height, radius, px_spacing, bitsperpixel);
+
+    start_display();
+
+    return true;
+}

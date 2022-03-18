@@ -8,10 +8,14 @@ class RaylibRenderer: FrameRenderer
 {
 public:
 
-	RaylibRenderer(int width1 = 128 * 11, int height1 = 32 * 11, int px_radius1 = 5, int px_spacing1 = 1, int bitsperpixel = 4);
+	RaylibRenderer();
 	~RaylibRenderer();
-	int showImage(DMDFrame* f);
+	virtual void render_frame(DMDFrame* f);
 	void set_palette(DMDPalette*);
+
+	void set_display_parameters(int width, int height, int px_radius, int px_spacing, int bitsperpixel);
+	void start_display();
+	virtual bool configure_from_ptree(boost::property_tree::ptree pt_general, boost::property_tree::ptree pt_renderer);
 
 private:
 

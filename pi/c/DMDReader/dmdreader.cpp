@@ -27,6 +27,7 @@ using namespace std;
 
 DMDSource* source = NULL;
 vector<DMDFrameProcessor*> processors = vector<DMDFrameProcessor*>();
+vector<FrameRenderer*> renderers = vector<FrameRenderer*>();
 
 bool read_config(string filename) {
 
@@ -39,16 +40,22 @@ bool read_config(string filename) {
 	// General
 	//
 	boost::property_tree::ptree pt_general = pt.get_child("general");
-	if ((pt.get("general.type","") == "spike") || (pt.get("general.type","") == "spike1")) {
-		pt.put("general.bitsperpixel", 4);
+	if ((pt_general.get("type","") == "spike") || (pt_general.get("type","") == "spike1")) {
+		pt_general.put("bitsperpixel", 4);
+		pt_general.put("rows", 32);
+		pt_general.put("columns", 128);
 	}
 
-	if ((pt.get("general.type", "") == "wpc")) {
-		pt.put("general.bitsperpixel", 2);
+	if ((pt_general.get("type", "") == "wpc")) {
+		pt_general.put("bitsperpixel", 2);
+		pt_general.put("rows", 32);
+		pt_general.put("columns", 128);
 	}
 
-	if ((pt.get("general.type", "") == "whitestar")) {
-		pt.put("general.bitsperpixel", 4);
+	if ((pt_general.get("type", "") == "whitestar")) {
+		pt_general.put("bitsperpixel", 4);
+		pt_general.put("rows", 32);
+		pt_general.put("columns", 128);
 	}
 
 	//
@@ -80,15 +87,37 @@ bool read_config(string filename) {
 	// 
 	// Sanity checks
 	//
-	int bpp_configured = pt.get("general.bitsperpixel", 0);
+	int bpp_configured = pt_general.get("bitsperpixel", 0);
 	SourceProperties sourceprop = { 0,0,0 };
-	source->get_properties(sourceprop);
+	source->get_properties(&sourceprop);
 
 	if (!(bpp_configured)) {
-		pt.put("general.bitsperpixel",sourceprop.bitsperpixel);
+		pt_general.put("bitsperpixel",sourceprop.bitsperpixel);
 	} else if (sourceprop.bitsperpixel && (bpp_configured != sourceprop.bitsperpixel)) {
 
 		BOOST_LOG_TRIVIAL(error) << "bits/pixel configured=" << bpp_configured << ", detected=" << sourceprop.bitsperpixel <<
+			" do not match, aborting";
+		return false;
+	}
+
+	int width_configured = pt_general.get("columns", 0);
+	if (!(width_configured)) {
+		pt_general.put("columns", sourceprop.width);
+	}
+	else if (sourceprop.width && (width_configured != sourceprop.width)) {
+
+		BOOST_LOG_TRIVIAL(error) << "columns configured=" << width_configured << ", detected=" << sourceprop.width <<
+			" do not match, aborting";
+		return false;
+	}
+
+	int height_configured = pt_general.get("rows", 0);
+	if (!(height_configured)) {
+		pt_general.put("rows", sourceprop.height);
+	}
+	else if (sourceprop.height && (height_configured != sourceprop.height)) {
+
+		BOOST_LOG_TRIVIAL(error) << "height configured=" << width_configured << ", detected=" << sourceprop.height <<
 			" do not match, aborting";
 		return false;
 	}
@@ -101,11 +130,33 @@ bool read_config(string filename) {
 		DMDFrameProcessor* proc = createProcessor(v.first);
 		if (proc) {
 			if (proc->configure_from_ptree(pt_general, v.second)) {
-				BOOST_LOG_TRIVIAL(info) << "successfully initialized input type " << v.first;
+				BOOST_LOG_TRIVIAL(info) << "successfully initialized processor " << v.first;
+				processors.push_back(proc);
+			} else {
+				delete proc;
+			}
+		} else {
+			BOOST_LOG_TRIVIAL(error) << "don't know processor type " << v.first << ", ignoring";
+		}
+	}
+
+
+	//
+	// Renderers
+	//
+	BOOST_FOREACH(const boost::property_tree::ptree::value_type& v, pt.get_child("renderer")) {
+		FrameRenderer* renderer = createRenderer(v.first);
+		if (renderer) {
+			if (renderer->configure_from_ptree(pt_general, v.second)) {
+				BOOST_LOG_TRIVIAL(info) << "successfully initialized renderer " << v.first;
+				renderers.push_back(renderer);
+			}
+			else {
+				delete renderer;
 			}
 		}
 		else {
-			BOOST_LOG_TRIVIAL(error) << "don't know processor type " << v.first;
+			BOOST_LOG_TRIVIAL(error) << "don't know renderer type " << v.first << ", ignoring";
 		}
 	}
 
@@ -115,7 +166,25 @@ bool read_config(string filename) {
 int main()
 {
 	string basedir = "../../../";
-	read_config(basedir + "democonfig.json");
+	if (!read_config(basedir + "democonfig.json")) {
+		BOOST_LOG_TRIVIAL(error) << "couldn't configure DMDReader, aborting";
+		exit(1);
+	}
+
+	while (!(source->finished())) {
+
+		DMDFrame* frame = source->next_frame();
+
+		for (DMDFrameProcessor* proc : processors) {
+			proc->process_frame(frame);
+		}
+
+		for (FrameRenderer* renderer : renderers) {
+			renderer->render_frame(frame);
+		}
+
+
+	}
 
 	return 0;
 }

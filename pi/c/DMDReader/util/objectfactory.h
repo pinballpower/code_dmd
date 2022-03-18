@@ -11,4 +11,5 @@
 #include "../render/framerenderer.h"
 
 DMDSource* createSource(string name);
-	DMDFrameProcessor* createProcessor(string name);
+DMDFrameProcessor* createProcessor(string name);
+FrameRenderer* createRenderer(string name);
