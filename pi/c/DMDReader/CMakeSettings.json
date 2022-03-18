@@ -1,15 +1,27 @@
 ﻿{
   "configurations": [
     {
-      "name": "x64-Debug",
-      "generator": "Ninja",
-      "configurationType": "Debug",
-      "inheritEnvironments": [ "msvc_x64_x64" ],
-      "buildRoot": "${projectDir}\\out\\build\\${name}",
-      "installRoot": "${projectDir}\\out\\install\\${name}",
-      "cmakeCommandArgs": "",
       "buildCommandArgs": "",
-      "ctestCommandArgs": ""
+      "buildRoot": "${projectDir}\\out\\build\\${name}",
+      "cmakeCommandArgs": "",
+      "configurationType": "Debug",
+      "ctestCommandArgs": "",
+      "generator": "Ninja",
+      "inheritEnvironments": [ "msvc_x64_x64" ],
+      "installRoot": "${projectDir}\\out\\install\\${name}",
+      "name": "x64-Debug",
+      "variables": [
+        {
+          "name": "CMAKE_TOOLCHAIN_FILE",
+          "value": "C:\\Users\\matuschd\\devel\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake",
+          "type": "STRING"
+        },
+        {
+          "name": "VCPKG_TARGET_TRIPLET",
+          "value": "x64-windows-static",
+          "type": "STRING"
+        }
+      ]
     }
   ]
 }
