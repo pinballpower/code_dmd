@@ -10,7 +10,6 @@
 
 .program dmd_reader_spike
 
-; Send using an external clock on the SPI interface
 ; - IN pin 0 is the DATA pin
 
     ; initialize y with 4096 = number of pixels (128x32)
