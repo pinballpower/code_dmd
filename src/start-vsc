@@ -1,4 +1,4 @@
 #!/bin/sh
 sudo chmod go+rw /dev/gpiomem
-export PICO_SDK_PATH=/home/pi/pico/pico-sdk
+export PICO_SDK_PATH=~/pico/pico-sdk
 code
