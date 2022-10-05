@@ -38,7 +38,7 @@ typedef struct buf32_t
 
 // SPI data types and header blocks
 // header block length should always be a multiple of 32bit
-#define SPI_BLOCK_PIX 1
+#define SPI_BLOCK_PIX 0xcc33
 
 typedef struct __attribute__((__packed__)) block_header_t
 {
@@ -216,6 +216,19 @@ void finish_spi() {
     gpio_put(SPI_IRQ_PIN, 0);
 }
 
+/**
+ * @brief A simple debug procedure that toggles the IRQ pin multiple times
+*/
+void spi_notify_onoff(int count) {
+    for (int i=0; i<count; i++){
+        gpio_put(SPI_IRQ_PIN, 1);
+        sleep_ms(100);
+        gpio_put(SPI_IRQ_PIN, 0);
+        sleep_ms(100);
+    } 
+} 
+
+
 
 /**
  * @brief Send a pix buffer via SPI
@@ -284,20 +297,24 @@ int detect_dmd()
         (rdata > 115) && (rdata < 130))
     {
         printf("WPC detected\n");
+        spi_notify_onoff(2);
         return DMD_WPC;
     } else if ((dotclk > 640000) && (dotclk < 700000) &&
         (de > 5000) && (de < 5300) &&
         (rdata > 70) && (rdata < 85)) 
     {
         printf("Stern Whitestar detected\n");
+        spi_notify_onoff(3);
         return DMD_WHITESTAR;
     } else if ((dotclk > 1000000) && (dotclk < 1100000) &&
         (de > 8000) && (de < 8400) &&
         (rdata > 240) && (rdata < 270)) {
         printf("Stern Spike1 detected\n");
+        spi_notify_onoff(4);
         return DMD_SPIKE1;
     }
 
+    spi_notify_onoff(1);
     return DMD_UNKNOWN;
 }
 
@@ -418,6 +435,8 @@ bool init()
     while (dmd_type == DMD_UNKNOWN) {
         dmd_type = detect_dmd();
     } 
+
+    sleep_ms(5000);
 
     uint offset;
 
