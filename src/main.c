@@ -7,11 +7,11 @@
 #include "hardware/pio.h"
 #include "hardware/irq.h"
 
-#include "spi_slave_sender.pio.h"
-#include "dmd_counter.pio.h"
-#include "dmd_interface_wpc.pio.h"
-#include "dmd_interface_whitestar.pio.h"
-#include "dmd_interface_spike.pio.h"
+#include "dmdreader/spi_slave_sender.pio.h"
+#include "dmdreader/dmd_counter.pio.h"
+#include "dmdreader/dmd_interface_wpc.pio.h"
+#include "dmdreader/dmd_interface_whitestar.pio.h"
+#include "dmdreader/dmd_interface_spike.pio.h"
 
 /**
  * Glossary
