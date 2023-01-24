@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdbool.h>
+#include <string.h>
 #include "pico/stdlib.h"
 #include "hardware/uart.h"
 #include "hardware/gpio.h"
@@ -73,6 +74,8 @@ typedef struct __attribute__((__packed__)) block_pix_header_t
 #define MAX_HEIGHT 64
 #define MAX_BITSPERPIXEL 4
 #define MAX_PLANESPERFRAME 4
+#define PLANE_BUFFER_SIZE (MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL * MAX_PLANESPERFRAME / 8)
+#define FRAME_BUFFER_SIZE (MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL / 8)
 
 uint16_t lcd_width;
 uint16_t lcd_height;
@@ -90,13 +93,13 @@ uint16_t lcd_wordsperline;
 bool lcd_shiftplanesatmerge=false;
 
 // raw data read from DMD
-uint8_t planebuf1[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL * MAX_PLANESPERFRAME / 8];
-uint8_t planebuf2[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL * MAX_PLANESPERFRAME / 8];
+uint8_t planebuf1[PLANE_BUFFER_SIZE] = {0};
+uint8_t planebuf2[PLANE_BUFFER_SIZE] = {0};
 uint8_t *lastplane = planebuf2;
 
 // processed frames (merged planes)
-uint8_t framebuf1[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL / 8];
-uint8_t framebuf2[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL/ 8];
+uint8_t framebuf1[FRAME_BUFFER_SIZE] = {0};
+uint8_t framebuf2[FRAME_BUFFER_SIZE] = {0};
 uint8_t* lastframe = framebuf1;
 
 uint32_t stat_frames_received=0;
@@ -228,8 +231,6 @@ void spi_notify_onoff(int count) {
     } 
 } 
 
-
-
 /**
  * @brief Send a pix buffer via SPI
  * 
@@ -285,36 +286,33 @@ uint32_t count_clock(const pio_program_t *program)
 
 int detect_dmd()
 {
-
     uint32_t dotclk = count_clock(&dmd_count_dotclk_program);
     uint32_t de = count_clock(&dmd_count_de_program);
     uint32_t rdata = count_clock(&dmd_count_rdata_program);
-
-    printf("", dotclk, de, rdata);
 
     if ((dotclk > 450000) && (dotclk < 550000) &&
         (de > 3800) && (de < 4000) &&
         (rdata > 115) && (rdata < 130))
     {
         printf("WPC detected\n");
-        spi_notify_onoff(2);
+        //spi_notify_onoff(2);
         return DMD_WPC;
     } else if ((dotclk > 640000) && (dotclk < 700000) &&
         (de > 5000) && (de < 5300) &&
         (rdata > 70) && (rdata < 85)) 
     {
         printf("Stern Whitestar detected\n");
-        spi_notify_onoff(3);
+        //spi_notify_onoff(3);
         return DMD_WHITESTAR;
     } else if ((dotclk > 1000000) && (dotclk < 1100000) &&
         (de > 8000) && (de < 8400) &&
         (rdata > 240) && (rdata < 270)) {
         printf("Stern Spike1 detected\n");
-        spi_notify_onoff(4);
+        //spi_notify_onoff(4);
         return DMD_SPIKE1;
     }
 
-    spi_notify_onoff(1);
+    //spi_notify_onoff(1);
     return DMD_UNKNOWN;
 }
 
@@ -370,6 +368,12 @@ void dmd_dma_handler() {
         planebuf++;
     }
 
+    if (memcmp(planebuf1, planebuf2, PLANE_BUFFER_SIZE) == 0) {
+        printf("Received same frame\n");
+        // Just a refresh, no new frame.
+        return;
+    }
+
     // Merge multiple planes
 
     // calculate offsets for each plane and cache these
@@ -423,6 +427,9 @@ bool init()
 
     printf("DMD reader starting\n");
 
+    gpio_init(PICO_DEFAULT_LED_PIN);
+    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+
     // this is uses to notify the Pi that data is available
     gpio_init(SPI_IRQ_PIN);
     gpio_set_dir(SPI_IRQ_PIN, GPIO_OUT);
@@ -436,7 +443,9 @@ bool init()
         dmd_type = detect_dmd();
     } 
 
-    sleep_ms(5000);
+    //sleep_ms(5000);
+
+    gpio_put(PICO_DEFAULT_LED_PIN, 1);
 
     uint offset;
 
@@ -484,7 +493,6 @@ bool init()
         lcd_pixelsperbyte = 8 / lcd_bitsperpixel;
         lcd_planesperframe = 2;         // in Whitestar, there's a MSB and a LSB plane
         lcd_lineoversampling = 2;       // in Whitestar each line is sent twice
-
     } else if (dmd_type == DMD_SPIKE1) {
         dmd_pio = pio0;
         offset = pio_add_program(dmd_pio, &dmd_reader_spike_program);
@@ -507,7 +515,6 @@ bool init()
         lcd_planesperframe = 4;         // in Spike there are 4 planes
         lcd_lineoversampling = 1;       // no line oversampling
         lcd_shiftplanesatmerge = true;
-
     } else {
         printf("Unknown DMD type, aborting\n");
         return false;
@@ -522,7 +529,7 @@ bool init()
     lcd_bytesperframe = lcd_bytesperplane * lcd_planesperframe;
     lcd_wordsperline = lcd_width * lcd_bitsperpixel / 32;
 
-    printf("LCD buffer initialized");
+    printf("LCD buffer initialized\n");
 
     // DMA for DMD reader
     dmd_dma_chan_cfg = dma_channel_get_default_config(dmd_dma_chan);
@@ -569,6 +576,8 @@ bool init()
     dmd_dma_handler();
     pio_sm_set_enabled(dmd_pio, dmd_sm, true);
 
+    printf("DMA to SPI initialized\n");
+
     return true;
 }
 
@@ -579,13 +588,15 @@ int main()
         return 0;
     }
 
-    while (true) {
-        // Wait for the next frame
-        if (!(frame_received)) sleep_ms(1);
-        frame_received=false; 
+    printf("Start ...\n");
 
-        // do something
+    while (true) {
         spi_send_pix(lastframe,true);
+        printf("Frame send: %lu\n", stat_frames_received);
+
+        // Wait for the next frame
+        while (!frame_received) sleep_ms(1);
+        frame_received=false;
     }
 
     return 0;
