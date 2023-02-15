@@ -41,10 +41,12 @@ to use 2 bit brightness data with only 2 cycles.
 ## Operation SAM
 
 On SAM systems each line is displayed 4 times:
-line 1: 83.2us
-line 2: 166.4us
-line 3: 41.55us (least significant)
-line 4: 208us (most significant)
+|line|display time|
+|---|---|
+|1|83.2us|
+|2|166.4us|
+|3|41.55us (least significant)|
+|4|208us (most significant)|
 
 This makes parsing of these a bit more complicated as there is no 
 "standard" LSB->MSB order as you would expect
@@ -54,10 +56,13 @@ This makes parsing of these a bit more complicated as there is no
 
 Spike 1 supports 16 levels of brightness. They are displayed in 4 planes each 
 using different timing:
-plane 1 (least significant): 1.05ms
-plane 2: 2.1ms
-plane 3: 4.2ms
-plane 4: 8.4ms
+|plane|diplsay time|
+|---|---|
+|1|1.05ms (least significant)|
+|2|2.1ms|
+|3|4.2ms|
+|4|8.4ms|
+
 A full screen consist of these 4 planes and therefore is displayed for 15.75ms
 
 # Reading data
