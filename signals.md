@@ -38,6 +38,18 @@ is sent twice first with 500kHz pixel clock, then again with
 1MHz pixel clock. While this might seem strange, this allows
 to use 2 bit brightness data with only 2 cycles.
 
+## Operation SAM
+
+On SAM systems each line is displayed 4 times:
+line 1: 83.2us
+line 2: 166.4us
+line 3: 41.55us (least significant)
+line 4: 208us (most significant)
+
+This makes parsing of these a bit more complicated as there is no 
+"standard" LSB->MSB order as you would expect
+
+
 ## Operation Spike 1
 
 Spike 1 supports 16 levels of brightness. They are displayed in 4 planes each 
