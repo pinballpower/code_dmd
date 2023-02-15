@@ -11,8 +11,6 @@
 |DOTCLK|dot clock|next column|
 |SDATA|dot data|pixel data|
 
-
-
 ## Timing/Frequencies
 
 |System|Pixel (column) Clock|Line clock|Screen rate|
@@ -50,13 +48,11 @@ plane 3: 4.2ms
 plane 4: 8.4ms
 A full screen consist of these 4 planes and therefore is displayed for 15.75ms
 
-## Reading data
+# Reading data
 
 When reading data, we assume the data is sent correctly. 
 This means we can read a full 128x32 bit frame 
 as follows:
-- Wait for RDATA to go to L
-- Wait for RDATA to go to H
-- Wait for RCLK to go to L
-- Signal "FRAME START"
-- Read 32x128 bit
+ - Wait for frame start - this is different on different platforms
+ - Read 32x128 bit
+
