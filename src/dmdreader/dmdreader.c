@@ -12,6 +12,7 @@
 #include "dmd_interface_wpc.pio.h"
 #include "dmd_interface_whitestar.pio.h"
 #include "dmd_interface_spike.pio.h"
+#include "dmd_interface_sam.pio.h"
 
 /**
  * Glossary
@@ -68,6 +69,11 @@ typedef struct __attribute__((__packed__)) block_pix_header_t
 #define DMD_WHITESTAR 2
 #define DMD_SPIKE1 3
 #define DMD_SAM 4
+
+// Line oversampling
+#define LINEOVERSAMPLING_NONE 1
+#define LINEOVERSAMPLING_WHITESTAR 2
+#define LINEOVERSAMPLING_SAM 4
 
 // data buffer
 #define MAX_WIDTH 192
@@ -401,7 +407,7 @@ void dmd_dma_handler() {
     }
 
     // deal with whitestar line oversampling directly within framebuf
-    if (lcd_lineoversampling==2) {
+    if (lcd_lineoversampling==LINEOVERSAMPLING_WHITESTAR) {
         uint16_t i=0;
         uint32_t *dst, *src1, *src2;
         dst=src1=framebuf;
@@ -418,9 +424,8 @@ void dmd_dma_handler() {
             dst += lcd_wordsperline;     // destination skips only one line
         }
         
-    } else if (lcd_lineoversampling==4) {
+    } else if (lcd_lineoversampling==LINEOVERSAMPLING_SAM) {
         // SAM line oversampling is more complicated
-        // TODO
     } 
 
     frame_received=true;
@@ -472,7 +477,7 @@ bool init()
         lcd_bitsperpixel = 2;
         lcd_pixelsperbyte = 8 / lcd_bitsperpixel;
         lcd_planesperframe = 3;
-        lcd_lineoversampling = 1;
+        lcd_lineoversampling = LINEOVERSAMPLING_NONE;
     } else if (dmd_type == DMD_WHITESTAR) {
         dmd_pio = pio0;
         offset = pio_add_program(dmd_pio, &dmd_reader_whitestar_program);
@@ -490,12 +495,12 @@ bool init()
 
         lcd_width = 128;
         lcd_height = 32;
-        lcd_bitsperpixel = 4;           // it's only 3, but padding to 4 makes things easier
+        lcd_bitsperpixel = 4;                                     // it's only 3, but padding to 4 makes things easier
         lcd_pixelsperbyte = 8 / lcd_bitsperpixel;
-        lcd_planesperframe = 2;         // in Whitestar, there's a MSB and a LSB plane
-        lcd_lineoversampling = 2;       // in Whitestar each line is sent twice
+        lcd_planesperframe = 2;                                  // in Whitestar, there's a MSB and a LSB plane
+        lcd_lineoversampling = LINEOVERSAMPLING_WHITESTAR;       // in Whitestar each line is sent twice
 
-    } else if (dmd_type == DMD_SPIKE1) {
+    } else if (dmd_type == DMD_SPIKE1)  {
         dmd_pio = pio0;
         offset = pio_add_program(dmd_pio, &dmd_reader_spike_program);
         dmd_sm = pio_claim_unused_sm(dmd_pio, true);
@@ -515,33 +520,33 @@ bool init()
         lcd_bitsperpixel = 4;           
         lcd_pixelsperbyte = 8 / lcd_bitsperpixel;
         lcd_planesperframe = 4;         // in Spike there are 4 planes
-        lcd_lineoversampling = 1;       // no line oversampling
+        lcd_lineoversampling =LINEOVERSAMPLING_NONE;       // no line oversampling
         lcd_shiftplanesatmerge = true;
 
     } else if (dmd_type == DMD_SAM) {
         dmd_pio = pio0;
         offset = pio_add_program(dmd_pio, &dmd_reader_sam_program);
         dmd_sm = pio_claim_unused_sm(dmd_pio, true);
-        dmd_reader_spike_program_init(dmd_pio, dmd_sm, offset);
+        dmd_reader_sam_program_init(dmd_pio, dmd_sm, offset);
         printf("SAM DMD reader initialized\n");
 
         // The framedetect program just runs and detects the beginning of a new frame
         frame_pio = pio0;
         offset = pio_add_program(frame_pio, &dmd_framedetect_sam_program);
         frame_sm = pio_claim_unused_sm(frame_pio, true);
-        dmd_framedetect_spike_program_init(frame_pio, frame_sm, offset);
+        dmd_framedetect_sam_program_init(frame_pio, frame_sm, offset);
         pio_sm_set_enabled(frame_pio, frame_sm, true);
-        printf("Spike frame detection initialized\n");
+        printf("SAM frame detection initialized\n");
 
         lcd_width = 128;
         lcd_height = 32;
         lcd_bitsperpixel = 4;           
         lcd_pixelsperbyte = 8 / lcd_bitsperpixel;
-        lcd_planesperframe = 4;         // in SAM there are 4 planes
-        lcd_lineoversampling = 4;       // lines are 4 times oversampled
-        lcd_shiftplanesatmerge = true;
+        lcd_planesperframe = 1;                            // in SAM there is one plane
+        lcd_lineoversampling = LINEOVERSAMPLING_SAM;       // with 4x line oversampling
+        lcd_shiftplanesatmerge = false;
 
-    }else {
+    } else {
         printf("Unknown DMD type, aborting\n");
         return false;
     }
@@ -549,7 +554,10 @@ bool init()
     // Calculate display parameters
     lcd_bytes = lcd_width * lcd_height * lcd_bitsperpixel / 8;
     lcd_pixelsperframe = lcd_width * lcd_height;
-    lcd_wordsperplane = lcd_bytes / 4 * lcd_lineoversampling;
+    lcd_wordsperplane = lcd_bytes / 4;
+    if (lcd_lineoversampling == LINEOVERSAMPLING_WHITESTAR) {
+     lcd_wordsperplane *= 2;
+    } 
     lcd_bytesperplane = lcd_bytes;
     lcd_wordsperframe = lcd_wordsperplane * lcd_planesperframe;
     lcd_bytesperframe = lcd_bytesperplane * lcd_planesperframe;
