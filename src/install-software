@@ -1,0 +1,7 @@
+#!/bin/sh
+
+# Installs additional software for development
+
+# GDB multi-arch
+sudo apt-get install gdb-multiarch
+
