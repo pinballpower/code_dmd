@@ -400,7 +400,7 @@ void dmd_dma_handler() {
         framebuf[px]=pixval;
     }
 
-    // deal with line oversampling directly within framebuf
+    // deal with whitestar line oversampling directly within framebuf
     if (lcd_lineoversampling==2) {
         uint16_t i=0;
         uint32_t *dst, *src1, *src2;
@@ -418,7 +418,10 @@ void dmd_dma_handler() {
             dst += lcd_wordsperline;     // destination skips only one line
         }
         
-    }
+    } else if (lcd_lineoversampling==4) {
+        // SAM line oversampling is more complicated
+        // TODO
+    } 
 
     frame_received=true;
 }
@@ -515,7 +518,30 @@ bool init()
         lcd_lineoversampling = 1;       // no line oversampling
         lcd_shiftplanesatmerge = true;
 
-    } else {
+    } else if (dmd_type == DMD_SAM) {
+        dmd_pio = pio0;
+        offset = pio_add_program(dmd_pio, &dmd_reader_sam_program);
+        dmd_sm = pio_claim_unused_sm(dmd_pio, true);
+        dmd_reader_spike_program_init(dmd_pio, dmd_sm, offset);
+        printf("SAM DMD reader initialized\n");
+
+        // The framedetect program just runs and detects the beginning of a new frame
+        frame_pio = pio0;
+        offset = pio_add_program(frame_pio, &dmd_framedetect_sam_program);
+        frame_sm = pio_claim_unused_sm(frame_pio, true);
+        dmd_framedetect_spike_program_init(frame_pio, frame_sm, offset);
+        pio_sm_set_enabled(frame_pio, frame_sm, true);
+        printf("Spike frame detection initialized\n");
+
+        lcd_width = 128;
+        lcd_height = 32;
+        lcd_bitsperpixel = 4;           
+        lcd_pixelsperbyte = 8 / lcd_bitsperpixel;
+        lcd_planesperframe = 4;         // in SAM there are 4 planes
+        lcd_lineoversampling = 4;       // lines are 4 times oversampled
+        lcd_shiftplanesatmerge = true;
+
+    }else {
         printf("Unknown DMD type, aborting\n");
         return false;
     }
