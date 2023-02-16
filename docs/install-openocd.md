@@ -1,4 +1,6 @@
-#OpenOCD
+# OpenOCD
+
+To upload software to the RP2040, OpenOCD is needed.
 
 ## Installation
 ```
