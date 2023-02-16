@@ -67,6 +67,7 @@ typedef struct __attribute__((__packed__)) block_pix_header_t
 #define DMD_WPC 1
 #define DMD_WHITESTAR 2
 #define DMD_SPIKE1 3
+#define DMD_SAM 4
 
 // data buffer
 #define MAX_WIDTH 192
@@ -297,21 +298,27 @@ int detect_dmd()
         (rdata > 115) && (rdata < 130))
     {
         printf("WPC detected\n");
-        spi_notify_onoff(2);
+        spi_notify_onoff(DMD_WPC);
         return DMD_WPC;
     } else if ((dotclk > 640000) && (dotclk < 700000) &&
         (de > 5000) && (de < 5300) &&
         (rdata > 70) && (rdata < 85)) 
     {
         printf("Stern Whitestar detected\n");
-        spi_notify_onoff(3);
+        spi_notify_onoff(DMD_WHITESTAR);
         return DMD_WHITESTAR;
     } else if ((dotclk > 1000000) && (dotclk < 1100000) &&
         (de > 8000) && (de < 8400) &&
         (rdata > 240) && (rdata < 270)) {
         printf("Stern Spike1 detected\n");
-        spi_notify_onoff(4);
+        spi_notify_onoff(DMD_SPIKE1);
         return DMD_SPIKE1;
+    } else if ((dotclk > 1000000) && (dotclk < 1100000) &&
+        (de > 8000) && (de < 8400) &&
+        (rdata > 60) && (rdata < 70)) { 
+        printf("Stern SAM detected\n");
+        spi_notify_onoff(DMD_SAM);
+        return DMD_SAM;
     }
 
     spi_notify_onoff(1);
@@ -436,7 +443,7 @@ bool init()
         dmd_type = detect_dmd();
     } 
 
-    sleep_ms(5000);
+    sleep_ms(1000);
 
     uint offset;
 
