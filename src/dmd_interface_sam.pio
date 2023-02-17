@@ -27,8 +27,10 @@
 
 dotloop:
     wait 0 gpio 4  ; falling edge
+    in null, 3     ; pad with 3 zeros
     wait 1 gpio 4  ; raising edge
     in pins 1      ; read pin data
+    
     
     jmp x-- dotloop
 
