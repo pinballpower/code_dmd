@@ -7,6 +7,8 @@
 #include "hardware/pio.h"
 #include "hardware/irq.h"
 
+#include "crc32.h"
+
 #include "spi_slave_sender.pio.h"
 #include "dmd_counter.pio.h"
 #include "dmd_interface_wpc.pio.h"
