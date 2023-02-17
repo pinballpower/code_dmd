@@ -75,11 +75,17 @@ typedef struct __attribute__((__packed__)) block_pix_header_t
 #define LINEOVERSAMPLING_WHITESTAR 2
 #define LINEOVERSAMPLING_SAM 4
 
+// Merging multiple planes
+#define MERGEPLANES_ADD 0
+#define MERGEPLANES_ADDSHIFT 1
+
 // data buffer
 #define MAX_WIDTH 192
 #define MAX_HEIGHT 64
 #define MAX_BITSPERPIXEL 4
 #define MAX_PLANESPERFRAME 4
+#define MAX_MEMORY_OVERHEAD 4   // reserve additional memory in framebuf for line oversampling
+
 
 uint16_t lcd_width;
 uint16_t lcd_height;
@@ -94,7 +100,7 @@ uint16_t lcd_wordsperframe;
 uint16_t lcd_bytesperframe;
 uint16_t lcd_lineoversampling;
 uint16_t lcd_wordsperline;
-bool lcd_shiftplanesatmerge=false;
+uint8_t  lcd_mergeplanes=MERGEPLANES_ADD;
 
 // raw data read from DMD
 uint8_t planebuf1[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL * MAX_PLANESPERFRAME / 8];
@@ -102,8 +108,8 @@ uint8_t planebuf2[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL * MAX_PLANESPERFRAME
 uint8_t *lastplane = planebuf2;
 
 // processed frames (merged planes)
-uint8_t framebuf1[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL / 8];
-uint8_t framebuf2[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL/ 8];
+uint8_t framebuf1[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL / 8 * MAX_MEMORY_OVERHEAD];
+uint8_t framebuf2[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL / 8 * MAX_MEMORY_OVERHEAD] ;
 uint8_t* lastframe = framebuf1;
 
 uint32_t stat_frames_received=0;
@@ -385,15 +391,17 @@ void dmd_dma_handler() {
 
     // Merge multiple planes
 
+    // add all planes to get the frame data
+    uint32_t *framebuf = (uint32_t *)lastframe;
     // calculate offsets for each plane and cache these
     uint16_t offset[MAX_PLANESPERFRAME];
     for (int i=0; i<MAX_PLANESPERFRAME; i++) {
         offset[i]=i*lcd_wordsperplane;
     }
 
-    // add all planes to get the frame data
+    bool lcd_shiftplanesatmerge = (lcd_mergeplanes == MERGEPLANES_ADDSHIFT);
+
     planebuf = (uint32_t *)lastplane;
-    uint32_t *framebuf = (uint32_t *)lastframe;
     for (int px=0; px<lcd_wordsperplane; px++) {
         uint32_t pixval=0;
         for (int plane=0; plane<lcd_planesperframe; plane++) {
@@ -423,10 +431,27 @@ void dmd_dma_handler() {
             src2 += lcd_wordsperline*2;
             dst += lcd_wordsperline;     // destination skips only one line
         }
-        
     } else if (lcd_lineoversampling==LINEOVERSAMPLING_SAM) {
-        // SAM line oversampling is more complicated
-    } 
+        uint16_t i=0;
+        uint32_t *dst, *src1, *src2, *src3, *src4;
+        dst=src1=framebuf;
+        src2=src1+lcd_wordsperline;
+        src3=src2+lcd_wordsperline;
+        src4=src3+lcd_wordsperline;
+        uint32_t v;
+
+        for (int l=0; l<lcd_height; l++) {
+            for (int w=0; w<lcd_wordsperline; w++) {
+                v = src1[w];
+                dst[w]=v;
+            }
+            src1 += lcd_wordsperline*4; // source skips 4 lines forward
+            src2 += lcd_wordsperline*4;
+            src3 += lcd_wordsperline*4;
+            src4 += lcd_wordsperline*4;
+            dst += lcd_wordsperline;     // destination skips only one line
+        }
+    }
 
     frame_received=true;
 }
@@ -521,7 +546,7 @@ bool init()
         lcd_pixelsperbyte = 8 / lcd_bitsperpixel;
         lcd_planesperframe = 4;         // in Spike there are 4 planes
         lcd_lineoversampling =LINEOVERSAMPLING_NONE;       // no line oversampling
-        lcd_shiftplanesatmerge = true;
+        lcd_mergeplanes = MERGEPLANES_ADDSHIFT;
 
     } else if (dmd_type == DMD_SAM) {
         dmd_pio = pio0;
@@ -542,10 +567,9 @@ bool init()
         lcd_height = 32;
         lcd_bitsperpixel = 4;           
         lcd_pixelsperbyte = 8 / lcd_bitsperpixel;
-        lcd_planesperframe = 1;                            // in SAM there is one plane
+        lcd_planesperframe = 1;                            // in SAM there is one planes
         lcd_lineoversampling = LINEOVERSAMPLING_SAM;       // with 4x line oversampling
-        lcd_shiftplanesatmerge = false;
-
+        lcd_mergeplanes = MERGEPLANES_ADD;
     } else {
         printf("Unknown DMD type, aborting\n");
         return false;
@@ -556,7 +580,9 @@ bool init()
     lcd_pixelsperframe = lcd_width * lcd_height;
     lcd_wordsperplane = lcd_bytes / 4;
     if (lcd_lineoversampling == LINEOVERSAMPLING_WHITESTAR) {
-     lcd_wordsperplane *= 2;
+        lcd_wordsperplane *= 2;
+    } else if (lcd_lineoversampling == LINEOVERSAMPLING_SAM) {
+        lcd_wordsperplane *= 4;  
     } 
     lcd_bytesperplane = lcd_bytes;
     lcd_wordsperframe = lcd_wordsperplane * lcd_planesperframe;
