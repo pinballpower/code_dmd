@@ -442,7 +442,8 @@ void dmd_dma_handler() {
 
         for (int l=0; l<lcd_height; l++) {
             for (int w=0; w<lcd_wordsperline; w++) {
-                v = src1[w];
+                // On SAM line order is really messed up :-(
+                v = src4[w]*8+src3[w]*1+src2[w]*4+src1[w]*2;
                 dst[w]=v;
             }
             src1 += lcd_wordsperline*4; // source skips 4 lines forward
