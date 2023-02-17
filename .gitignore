@@ -1,5 +1,5 @@
 src/build
-src//CMakeCache.txt
+src/CMakeCache.txt
 src/CopyOfCMakeCache.txt
 src/Makefile
 src/cmake_install.cmake
