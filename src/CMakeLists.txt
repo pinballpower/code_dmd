@@ -19,7 +19,7 @@ project(dmdreader C CXX ASM)
 pico_sdk_init() 
 
 # Add executable. Default name is the project name, version 0.1
-add_executable(${PROJECT_NAME} dmdreader.c)
+add_executable(${PROJECT_NAME} dmdreader.c crc32.c)
 pico_set_program_name(${PROJECT_NAME} "dmdreader")
 pico_set_program_version(${PROJECT_NAME} "0.1")
 
