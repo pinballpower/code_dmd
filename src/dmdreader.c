@@ -16,6 +16,13 @@
 #include "dmd_interface_spike.pio.h"
 #include "dmd_interface_sam.pio.h"
 
+// should CRC32 checksum be caculated and sent with each frame
+#define USE_CRC
+
+// supress duplicate frames (implies USE_CRC)
+#define SUPRESS_DUPLICATES
+
+
 /**
  * Glossary
  * 
@@ -31,6 +38,10 @@
 #define LED1_PIN 27
 #define LED2_PIN 28
 
+#ifdef SUPRESS_DUPLICATES
+#define USE_CRC
+#endif
+
 typedef struct buf32_t 
 {
     uint8_t byte0;
@@ -41,13 +52,15 @@ typedef struct buf32_t
 
 // SPI data types and header blocks
 // header block length should always be a multiple of 32bit
-#define SPI_BLOCK_PIX 0xcc33
+#define SPI_BLOCK_PIX 0xcc33        // DMD frame
+#define SPI_BLOCK_PIX_CRC 0x44ee    // DMD frame with CRC32 checksum
 
 typedef struct __attribute__((__packed__)) block_header_t
 {
     uint16_t block_type; // block type
     uint16_t len;        // length of the whole data including header in bytes
 } block_header_t;
+
 
 typedef struct __attribute__((__packed__)) block_pix_header_t
 {
@@ -56,6 +69,16 @@ typedef struct __attribute__((__packed__)) block_pix_header_t
     uint16_t bitsperpixel; // bits per pixel
     uint16_t padding;
 } block_pix_header_t;
+
+typedef struct __attribute__((__packed__)) block_pix_crc_header_t
+{
+    uint16_t columns;      // number of columns
+    uint16_t rows;         // number of rows
+    uint16_t bitsperpixel; // bits per pixel
+    uint16_t padding;
+    uint32_t crc32;        // crc32 of the pixel data
+} block_pix_crc_header_t;
+
 
 // SPI Defines
 #define SPI0 spi0
@@ -88,7 +111,6 @@ typedef struct __attribute__((__packed__)) block_pix_header_t
 #define MAX_PLANESPERFRAME 4
 #define MAX_MEMORY_OVERHEAD 4   // reserve additional memory in framebuf for line oversampling
 
-
 uint16_t lcd_width;
 uint16_t lcd_height;
 uint16_t lcd_bitsperpixel;
@@ -111,8 +133,11 @@ uint8_t *lastplane = planebuf2;
 
 // processed frames (merged planes)
 uint8_t framebuf1[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL / 8 * MAX_MEMORY_OVERHEAD];
-uint8_t framebuf2[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL / 8 * MAX_MEMORY_OVERHEAD] ;
+uint8_t framebuf2[MAX_WIDTH * MAX_HEIGHT * MAX_BITSPERPIXEL / 8 * MAX_MEMORY_OVERHEAD];
+uint32_t crc1;
+uint32_t crc2;
 uint8_t* lastframe = framebuf1;
+uint32_t* lastcrc;
 
 uint32_t stat_frames_received=0;
 uint32_t stat_spi_skipped=0;
@@ -250,17 +275,28 @@ void spi_notify_onoff(int count) {
  * 
  * @param pixbuf a frame to send
  */
-bool spi_send_pix(uint8_t *pixbuf, bool skip_when_busy)
+bool spi_send_pix(uint8_t *pixbuf, uint32_t crc32, bool skip_when_busy)
 {
+    
+#ifdef USE_CRC 
+    block_header_t h = {
+        .block_type = SPI_BLOCK_PIX_CRC};
+    block_pix_crc_header_t ph = {};
+#else 
     block_header_t h = {
         .block_type = SPI_BLOCK_PIX};
     block_pix_header_t ph = {};
+#endif
 
     // round length to 4-byte blocks
     h.len = (((lcd_bytes + 3) / 4) * 4) + sizeof(h) + sizeof(ph);
     ph.columns = lcd_width;
     ph.rows = lcd_height;
     ph.bitsperpixel = lcd_bitsperpixel;
+#ifdef USE_CRC
+    ph.crc32 = crc32;
+#endif
+
 
     if (skip_when_busy) {
         if (spi_busy()) return false;
@@ -358,6 +394,7 @@ void spi_dma_handler() {
 void dmd_dma_handler() {
 
     uint8_t *target;
+    uint32_t *targetcrc;
     uint32_t *planebuf;
 
     // Switch between buffers
@@ -365,10 +402,14 @@ void dmd_dma_handler() {
         target = planebuf1;
         lastplane = planebuf2;
         lastframe = framebuf2;
+        lastcrc = &crc2;
+        targetcrc = &crc1;
     } else {
         target = planebuf2;
         lastplane = planebuf1;
         lastframe = framebuf1;
+        lastcrc = &crc1;
+        targetcrc = &crc2;
     }
 
     // Clear the interrupt request
@@ -455,6 +496,9 @@ void dmd_dma_handler() {
             dst += lcd_wordsperline;     // destination skips only one line
         }
     }
+#ifdef USE_CRC
+    *lastcrc = crc32(0,(const uint8_t*) framebuf, lcd_bytes);
+#endif
 
     frame_received=true;
 }
@@ -644,6 +688,7 @@ bool init()
 
 int main()
 {
+    uint32_t crc_previous_frame = 0;
     if (!init()) {
         printf("Error during initialisation, aborting...\n");
         return 0;
@@ -655,7 +700,15 @@ int main()
         frame_received=false; 
 
         // do something
-        spi_send_pix(lastframe,true);
+#ifdef SUPRESS_DUPLICATES
+        if  (*lastcrc != crc_previous_frame) { 
+            spi_send_pix(lastframe, *lastcrc, true);
+            crc_previous_frame = *lastcrc;
+        } 
+#else
+        spi_send_pix(lastframe, *lastcrc, true);
+#endif
+
     }
 
     return 0;
