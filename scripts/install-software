@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Installs additional software for development
-sudo apt-get -y install gdb-multiarch cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib openocd
+sudo apt-get -y install gdb-multiarch cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib openocd cmake
 
 cd
 git clone https://github.com/raspberrypi/pico-sdk
