@@ -49,6 +49,10 @@ lineloop:
     wait 0 gpio rclk
     jmp x-- lineloop
 
+    ; delay by 1 pixel
+    wait 0 gpio 4
+    wait 1 gpio 4
+
     irq 4
 
 .wrap
