@@ -4,7 +4,12 @@ if [ "$1" == "" ]; then
 	exit 1
 fi
 
+echo "Stopping DMDReader..."
 sshpass -p pbos scp dmdreader.elf root@$1:/firmware 
-sshpass -p pbos ssh -l root $1 'ps -ef | grep dmdreader | grep -v grep | awk '{print $1}' | xargs kill -KILL'
+sshpass -p pbos ssh -l root $1 'pkill dmdreader'
+sleep 5
+sshpass -p pbos ssh -l root $1 'pkill -KILL dmdreader'
+echo "Programming RP2040..."
 sshpass -p pbos ssh -l root $1 'cd /firmware; openocd -f raspberrypi-swd-dmdreader.cfg -f target/rp2040.cfg -c "program dmdreader.elf verify reset exit"'
+echo "Rebooting..."
 sshpass -p pbos ssh -l root $1 'reboot'
